@@ -4,15 +4,20 @@
 #
 # [Name]                    starts a universe group
 # @index SYMBOL             Yahoo symbol of the index, shown for comparison
-# @wikipedia <address>      loads the members live from Wikipedia (US indices)
+# @wikipedia <address>      loads the members live from Wikipedia (US indices, includes GICS sector)
+# @source <address>         backup member sources, tried in order if the one above cannot be read
+#                           (Nasdaq's own list at api.nasdaq.com, or any page with a ticker table such as slickcharts.com)
 # CODE | Company name       one stock per line (Bloomberg style codes work)
 [S&P 500]
 @index ^GSPC
 @wikipedia https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
+@source https://www.slickcharts.com/sp500
 
 [Nasdaq-100]
 @index ^NDX
 @wikipedia https://en.wikipedia.org/wiki/Nasdaq-100
+@source https://api.nasdaq.com/api/quote/list-type/nasdaq100
+@source https://www.slickcharts.com/nasdaq100
 
 [China H-shares]
 @index ^HSCE

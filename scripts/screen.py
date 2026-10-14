@@ -196,13 +196,31 @@ def analyse(bars, spx=None, now=None):
     return r
 
 
+# ---------------- chart files (one per stock, for chart.html) ----------------
+def chart_file(k):
+    return re.sub(r"[^A-Za-z0-9.-]", "_", k) + ".json"
+
+
+def chart_payload(b):
+    """Two years of daily candles, compact: day start (unix seconds), open, high, low, close, volume.
+    The last close is the live price, as everywhere else on the site."""
+    sig = lambda x: float(f"{x:.6g}")   # noqa: E731   6 significant digits is plenty for a chart
+    c = list(b["c"])
+    o, h, l = list(b.get("o") or c), list(b["h"]), list(b["l"])
+    if b.get("last") is not None and c:
+        c[-1] = b["last"]
+        h[-1], l[-1] = max(h[-1], c[-1]), min(l[-1], c[-1])
+    return {"t": [t - t % 86400 for t in b["t"]], "o": [sig(x) for x in o], "h": [sig(x) for x in h],
+            "l": [sig(x) for x in l], "c": [sig(x) for x in c], "v": [int(x or 0) for x in b["v"]]}
+
+
 # ---------------- Yahoo ----------------
 def yahoo_bars(symbol):
     q = urllib.parse.quote(symbol)
     raw, err = None, None
     for host in ("query1", "query2"):
         try:
-            raw = get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range=1y&interval=1d&includePrePost=false", tries=2)
+            raw = get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range=2y&interval=1d&includePrePost=false", tries=2)
             break
         except Exception as e:  # noqa: BLE001
             err = e
@@ -212,14 +230,16 @@ def yahoo_bars(symbol):
     meta, quote = res["meta"], res["indicators"]["quote"][0]
     n = len(res["timestamp"])
     vol = quote.get("volume") or [0] * n   # some indices have no volume series
-    rows = [(t, c, h, l, v) for t, c, h, l, v in zip(res["timestamp"], quote["close"], quote["high"], quote["low"], vol)
+    opens = quote.get("open") or [None] * n
+    rows = [(t, c, h, l, v, o) for t, c, h, l, v, o in zip(res["timestamp"], quote["close"], quote["high"], quote["low"], vol, opens)
             if c is not None and h is not None and l is not None]
     if len(rows) < 2:
         raise ValueError("not enough price history")
     reg = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
     tm = meta.get("regularMarketTime", rows[-1][0])
     return {"t": [r[0] for r in rows], "c": [r[1] for r in rows], "h": [r[2] for r in rows], "l": [r[3] for r in rows],
-            "v": [r[4] or 0 for r in rows], "last": meta.get("regularMarketPrice"), "time": tm,
+            "v": [r[4] or 0 for r in rows], "o": [r[5] if r[5] is not None else r[1] for r in rows],
+            "last": meta.get("regularMarketPrice"), "time": tm,
             "currency": meta.get("currency"), "exch": meta.get("exchangeName"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
 
 
@@ -322,7 +342,7 @@ def read_list(path):
             if not line:
                 continue
             if line.startswith("[") and line.endswith("]"):
-                cur = {"name": line[1:-1].strip(), "wiki": None, "index": None, "items": []}
+                cur = {"name": line[1:-1].strip(), "wiki": None, "sources": [], "index": None, "items": []}
                 out["groups"].append(cur)
             elif line.startswith("@"):
                 key, _, val = line[1:].partition(" ")
@@ -331,13 +351,14 @@ def read_list(path):
                     out[key] = val
                 elif cur is None and key == "order":
                     out["order"] = int(val) if val.isdigit() else 100
-                elif cur is not None and key == "wikipedia":
-                    cur["wiki"] = val
+                elif cur is not None and key in ("wikipedia", "source"):   # tried in the order written
+                    cur["wiki"] = cur["wiki"] or val
+                    cur["sources"].append(val)
                 elif cur is not None and key == "index":   # alternatives after commas are tried in order
                     cur["index"] = [v.strip() for v in val.split(",") if v.strip()]
             else:
                 if cur is None:
-                    cur = {"name": "Watchlist", "wiki": None, "index": None, "items": []}
+                    cur = {"name": "Watchlist", "wiki": None, "sources": [], "index": None, "items": []}
                     out["groups"].append(cur)
                 code, _, rest = line.partition("|")
                 name, _, exch = rest.partition("|")
@@ -415,8 +436,62 @@ def wikipedia_members(html, min_rows=20):
         if len(members) > len(best):
             best = members
     if len(best) < min_rows:
-        raise ValueError(f"members table not found (page {len(html)} chars, {len(p.tables)} tables, best {len(best)} rows)")
+        best = ticker_column_members(p.tables, min_rows) or best
+    if len(best) < min_rows:
+        big = sorted(p.tables, key=len, reverse=True)[:3]
+        look = "; ".join(f"{len(t)} rows, first row {[_clean(c)[:14] for c in t[0]][:6]}" for t in big if t)
+        raise ValueError(f"members table not found (page {len(html)} chars, {len(p.tables)} tables, best {len(best)} rows; largest: {look})")
     return best
+
+
+TICKER = re.compile(r"^[A-Z]{1,5}([.-][A-Z])?$")
+
+
+def ticker_column_members(tables, min_rows):
+    """Fallback when no header says Symbol/Ticker: the column where most cells look like tickers;
+    the company name is the neighbouring column with the longest text."""
+    best = []
+    for rows in tables:
+        body = [r for r in rows if len(r) >= 2]
+        if len(body) < min_rows:
+            continue
+        width = max(len(r) for r in body)
+        for ci in range(width):
+            vals = [_clean(r[ci]) if ci < len(r) else "" for r in body]
+            hits = [i for i, v in enumerate(vals) if TICKER.match(v)]
+            if len(hits) < max(min_rows, 0.7 * len(body)):
+                continue
+            def name_of(r):
+                cands = [_clean(c) for j, c in enumerate(r) if j != ci and not TICKER.match(_clean(c))]
+                return max(cands, key=len) if cands else ""
+            seen, members = set(), []
+            for i in hits:
+                sym = vals[i].replace(".", "-")
+                if sym not in seen:
+                    seen.add(sym)
+                    members.append((sym, name_of(body[i]) or sym, ""))
+            if len(members) > len(best):
+                best = members
+    return best
+
+
+def nasdaq_api_members(raw):
+    """api.nasdaq.com/api/quote/list-type/nasdaq100 -> [(symbol, name, "")]."""
+    d = json.loads(raw)
+    rows = ((d.get("data") or {}).get("data") or {}).get("rows") or (d.get("data") or {}).get("rows") or []
+    out = [(r["symbol"].strip().upper().replace(".", "-").replace("/", "-"), (r.get("companyName") or r["symbol"]).strip(), "")
+           for r in rows if r.get("symbol")]
+    if len(out) < 20:
+        raise ValueError(f"Nasdaq list had {len(out)} rows")
+    return out
+
+
+def members_from(url):
+    """Index members from any source: a JSON list from api.nasdaq.com, or any web page with a ticker table."""
+    raw = get(url, tries=2, timeout=25).decode("utf-8", "ignore")
+    if raw.lstrip().startswith("{"):
+        return nasdaq_api_members(raw)
+    return wikipedia_members(raw)
 
 
 # Used only when Wikipedia cannot be read AND there is no previously published list (approximate membership)
@@ -443,15 +518,23 @@ def previous_data():
 
 
 def fill_universe(universe, errors):
-    """Load index members from Wikipedia for every universe group that has @wikipedia (falls back to last published list)."""
+    """Load index members for every universe group with @wikipedia / @source lines, trying each source in order,
+    then the list published last time, then a built-in list. GICS sectors come from Wikipedia when it is readable."""
     prev = None
     for g in universe["groups"]:
-        if not g["wiki"]:
+        if not g["sources"]:
             continue
-        try:
-            members = wikipedia_members(get(g["wiki"], tries=2, timeout=25).decode("utf-8", "ignore"))
-            g["items"] = [{"cands": [s], "sym": s, "label": n, "exch": "", "sector": sec} for s, n, sec in members]
-        except Exception as e:  # noqa: BLE001
+        fails = []
+        for i, src in enumerate(g["sources"]):
+            try:
+                members = members_from(src)
+                g["items"] = [{"cands": [s], "sym": s, "label": n, "exch": "", "sector": sec} for s, n, sec in members]
+                if fails:
+                    errors.append(f"{g['name']}: {'; '.join(fails)}; used {host(src)} instead ({len(members)} members)")
+                break
+            except Exception as e:  # noqa: BLE001
+                fails.append(f"{host(src)} unreadable ({e})")
+        else:
             if prev is None:
                 prev = previous_data() or {}
             old = next((u for u in prev.get("universe", []) if u["name"] == g["name"]), None)
@@ -459,12 +542,26 @@ def fill_universe(universe, errors):
             if old:
                 g["items"] = [{"cands": [i["k"]], "sym": i["sym"], "label": i["label"], "exch": "", "sector": i.get("sector", "")}
                               for i in old["items"]]
-                errors.append(f"{g['name']}: Wikipedia unreadable ({e}); reused last published member list")
+                errors.append(f"{g['name']}: {'; '.join(fails)}; reused last published member list")
             elif fb:
                 g["items"] = [{"cands": [s], "sym": s, "label": s, "exch": "", "sector": ""} for s in fb]
-                errors.append(f"{g['name']}: Wikipedia unreadable ({e}); used the built-in member list")
+                errors.append(f"{g['name']}: {'; '.join(fails)}; used the built-in member list")
             else:
-                errors.append(f"{g['name']}: Wikipedia unreadable ({e}); group skipped")
+                errors.append(f"{g['name']}: {'; '.join(fails)}; group skipped")
+
+
+def host(url):
+    return urllib.parse.urlparse(url).netloc or url
+
+
+def borrow_sectors(universe):
+    """Members loaded from a source without sectors (e.g. Nasdaq's list) take the GICS sector of the same stock
+    in another group (the S&P 500 from Wikipedia)."""
+    known = {it["k"] if "k" in it else it["cands"][0]: it.get("sector") for g in universe["groups"] for it in g["items"] if it.get("sector")}
+    for g in universe["groups"]:
+        for it in g["items"]:
+            if not it.get("sector") and it["cands"][0] in known:
+                it["sector"] = known[it["cands"][0]]
 
 
 # ---------------- build ----------------
@@ -486,6 +583,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     universe = read_list(os.path.join(ROOT, "universe.txt"))
     if load_universe:
         fill_universe(universe, errors)
+        borrow_sectors(universe)
 
     # every stock is fetched once, however many themes and universes it is in
     jobs = {}
@@ -525,7 +623,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     spx = analyse(spx_b) if spx_b else None
     if not spx:
         errors.append("S&P 500 reference unavailable: relative strength columns are blank")
-    stocks, missing = {}, 0
+    stocks, missing, charts = {}, 0, {}
     for k, b, err in raw:
         if err:
             missing += 1
@@ -538,6 +636,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
             errors.append(f"{k}: {e}")
             continue
         r["ysym"], r["cur"], r["exch"] = b["ysym"], b.get("currency"), b.get("exch")
+        charts[k] = chart_payload(b)
         if k in hl:
             r["news"] = hl[k]
         stocks[k] = r
@@ -589,6 +688,14 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     path = os.path.join(out_dir, "data.json")
     with open(path, "w") as f:
         json.dump(data, f, separators=(",", ":"), default=lambda x: None)
+    cdir = os.path.join(out_dir, "charts")
+    os.makedirs(cdir, exist_ok=True)
+    for f in os.listdir(cdir):   # drop charts of stocks no longer on any list
+        if f.endswith(".json"):
+            os.remove(os.path.join(cdir, f))
+    for k, cp in charts.items():
+        with open(os.path.join(cdir, chart_file(k)), "w") as f:
+            json.dump(cp, f, separators=(",", ":"))
     nsig = sum(len(s["signals"]) for s in stocks.values())
     print(f"wrote {path}: {len(themes)} themes, {sum(len(u['items']) for u in data['universe'])} universe names, "
           f"{len(stocks)} stocks with data, {missing} without, {nsig} signals")

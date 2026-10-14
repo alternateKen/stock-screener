@@ -32,7 +32,7 @@ MU | Micron
 WDC | Western Digital
 STX | Seagate
 SNDK | SanDisk
-PSTG | Pure Storage
+P | Everpure (formerly Pure Storage)
 
 [Foundry & Packaging]
 TSM | TSMC (ADR)

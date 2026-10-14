@@ -18,7 +18,7 @@ const sortState={};let T=null;
 function groupRows(g){return rowsOf(g.items,{basket:g.name})}
 function barRow(r,val,txt,sub,kind,scale,mark){
   const w=Math.max(2,Math.min(100,Math.abs(val)/scale*100));
-  return `<div class="mrow"><div class="mt"><b>${esc(r.sym)}</b><small>${esc(r.basket)}</small></div>
+  return `<div class="mrow"><div class="mt"><b>${chartLink(r,esc(r.sym))}</b><small>${esc(r.basket)}</small></div>
     <div class="mbar"><i class="${kind}" style="width:${w}%"></i>${mark!=null?`<u style="left:${Math.min(100,mark/scale*100)}%"></u>`:''}</div>
     <div class="mv ${kind==='u'?'up':kind==='d'?'dn':''}">${txt}${sub?`<small class="${cls(r.pct)}">${sub}</small>`:''}</div></div>`;
 }
@@ -44,9 +44,9 @@ function summary(){
   const vol=all.filter(r=>r.vol_x!=null&&r.vol_x>=1.8).sort((a,b)=>b.vol_x-a.vol_x).slice(0,6),vsc=Math.max(3,...vol.map(r=>r.vol_x));
   const volH=vol.length?vol.map(r=>barRow(r,r.vol_x,r.vol_x.toFixed(1)+'×',pc(r.pct,1),'v',vsc,1)).join('')+'<div class="zonelab"><span>Bar = volume vs 20-day avg (line = 1×)</span><span>today may be partial</span></div>':'<div class="empty">No stock above 1.8× its 20-day average volume.</div>';
   const sig=all.filter(r=>(r.signals||[]).some(s=>s.k!=='rsi70'&&s.k!=='rsi30')).sort((a,b)=>b.signals.length-a.signals.length).slice(0,10);
-  const sigH=sig.length?sig.map(r=>`<div style="padding:3px 0"><b>${esc(r.sym)}</b> <span class="mu" style="font-size:11px">${esc(r.basket)}</span><br>${sigChips(r)}</div>`).join(''):'<div class="empty">No trend, MACD, 52-week or volume signals today.</div>';
+  const sigH=sig.length?sig.map(r=>`<div style="padding:3px 0"><b>${chartLink(r,esc(r.sym))}</b> <span class="mu" style="font-size:11px">${esc(r.basket)}</span><br>${sigChips(r)}</div>`).join(''):'<div class="empty">No trend, MACD, 52-week or volume signals today.</div>';
   const hot=all.filter(r=>r.rsi!=null&&r.rsi>=70).sort((a,b)=>b.rsi-a.rsi).slice(0,5),cold=all.filter(r=>r.rsi!=null&&r.rsi<=30).sort((a,b)=>a.rsi-b.rsi).slice(0,5);
-  const rr=r=>`<div class="mrow"><div class="mt"><b>${esc(r.sym)}</b><small>${esc(r.basket)}</small></div><div>${rsiGauge(r.rsi)}</div><div class="mv ${rsiCls(r.rsi)}">${r.rsi.toFixed(0)}</div></div>`;
+  const rr=r=>`<div class="mrow"><div class="mt"><b>${chartLink(r,esc(r.sym))}</b><small>${esc(r.basket)}</small></div><div>${rsiGauge(r.rsi)}</div><div class="mv ${rsiCls(r.rsi)}">${r.rsi.toFixed(0)}</div></div>`;
   const rsiH=(hot.length?`<div class="sub">Overbought (RSI ≥ 70)</div>${hot.map(rr).join('')}`:'')+(cold.length?`<div class="sub">Oversold (RSI ≤ 30)</div>${cold.map(rr).join('')}`:'')||'<div class="empty">No stock with RSI above 70 or below 30.</div>';
   return `<section id="overview"><h2>${esc(T.title)} · basket overview</h2>${T.description?`<div class="desc">${esc(T.description)}</div>`:''}<div class="cards">${cards}</div>
    <div class="movers">
@@ -77,14 +77,14 @@ function basketHTML(g,i){
   const body=rows.map((r,j)=>{
     if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="12" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
     const nws=(r.news||[]).map(n=>`<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.title)}</a>`).join('')||'<span class="mu">No recent headlines</span>';
-    const extra=`<div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.tv_industry?' · '+esc(r.tv_industry):''}${r.cur?' · '+esc(r.cur):''}</div>`;
-    return `<tr class="main" data-n="${i}-${j}"><td class="nm">${esc(r.label)}<small>${esc(r.sym)} · ${fmt(r.last,2)}</small>${(r.signals||[]).length?`<div>${sigChips(r,3)}</div>`:''}</td>
+    const extra=`<div style="margin-bottom:4px"><a class="more" href="${chartUrl(r.k)}">Open the chart (candles, moving averages, RSI, MACD) &rarr;</a></div><div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.tv_industry?' · '+esc(r.tv_industry):''}${r.cur?' · '+esc(r.cur):''}</div>`;
+    return `<tr class="main" data-n="${i}-${j}"><td class="nm">${chartLink(r,esc(r.label))}<small>${esc(r.sym)} · ${fmt(r.last,2)}</small>${(r.signals||[]).length?`<div>${sigChips(r,3)}</div>`:''}</td>
       ${COLS.slice(1).map(c=>c[2](r)).join('')}<td class="${cls(r.m1)}">${spark(r.spark)}</td></tr>
       <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="13">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
   const s=stats(groupRows(g));
   return `<section id="${slug(g.name)}"><h2>${esc(g.name)} · avg day <span class="${cls(s.day)}">${pc(s.day,2)}</span> · 1M <span class="${cls(s.m1)}">${pc(s.m1)}</span></h2>
     <div class="scroll"><table><tr>${th}<th>45d</th></tr>${body}</table></div>
-    <div class="note">Click a column to sort, click a stock for its details and latest headlines. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months). TradingView = its own technical rating (Strong buy to Strong sell, from 26 moving averages and oscillators), shown as a second opinion; hover for the parts.</div></section>`;
+    <div class="note">Click a column to sort, click a row for details and headlines, click a stock's name for its chart. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months). TradingView = its own technical rating (Strong buy to Strong sell, from 26 moving averages and oscillators), shown as a second opinion; hover for the parts.</div></section>`;
 }
 function liveBlock(){
   return `<section id="live"><h2>Live prices from TradingView (refreshes every time you reload this page)</h2>

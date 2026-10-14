@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chart · Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+<style>
+.pane{position:relative;width:100%}
+#main-pane{height:420px}#rsi-pane{height:130px}#macd-pane{height:150px}
+@media(max-width:700px){#main-pane{height:320px}#rsi-pane{height:110px}#macd-pane{height:120px}}
+.legend{position:absolute;left:8px;top:4px;z-index:3;font-size:11px;font-variant-numeric:tabular-nums;pointer-events:none;background:color-mix(in srgb,var(--card) 80%,transparent);padding:2px 6px;border-radius:4px}
+.legend b{font-weight:600}.legend span{margin-right:8px;white-space:nowrap}
+.panetitle{font-size:11px;color:var(--mute);margin:8px 0 2px;text-transform:uppercase;letter-spacing:.05em}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px}
+.stat{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat .l{font-size:11px;color:var(--mute)}.stat .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.key i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+#tvbox.on{height:600px}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<script src="vendor/lightweight-charts-4.2.3.js"></script>
+<script src="common.js"></script>
+<script>
+const K=new URLSearchParams(location.search).get('k')||'';
+header('Chart','<a href="javascript:history.length>1?history.back():location.href=\'index.html\'">&larr; Back</a> &nbsp;·&nbsp; <a href="index.html">All themes</a> &nbsp;·&nbsp; ');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COL={ma20:'#9aa3ad',ma50:'#2f7fe0',ma200:'#e08a1e',macd:'#2f7fe0',sig:'#e08a1e'};
+let C=null,R=null,charts=[],range='1y';
+
+// ---- indicators: the same formulas as scripts/screen.py (so the chart agrees with the tables) ----
+function smaS(x,n){const o=Array(x.length).fill(null);let s=0;for(let i=0;i<x.length;i++){s+=x[i];if(i>=n)s-=x[i-n];if(i>=n-1)o[i]=s/n}return o}
+function emaS(x,n){const o=Array(x.length).fill(null);if(x.length<n)return o;const k=2/(n+1);let e=0;for(let i=0;i<n;i++)e+=x[i];e/=n;o[n-1]=e;for(let i=n;i<x.length;i++){e=x[i]*k+e*(1-k);o[i]=e}return o}
+function rsiS(c){const o=Array(c.length).fill(null);if(c.length<15)return o;let ag=0,al=0;
+  for(let i=1;i<=14;i++){const d=c[i]-c[i-1];ag+=Math.max(d,0);al+=Math.max(-d,0)}ag/=14;al/=14;o[14]=al===0?100:100-100/(1+ag/al);
+  for(let i=15;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*13+Math.max(d,0))/14;al=(al*13+Math.max(-d,0))/14;o[i]=al===0?100:100-100/(1+ag/al)}return o}
+function macdS(c){const a=emaS(c,12),b=emaS(c,26),line=c.map((_,i)=>a[i]!=null&&b[i]!=null?a[i]-b[i]:null);
+  const f=line.findIndex(v=>v!=null),sig=Array(c.length).fill(null);if(f>=0){const s=emaS(line.slice(f),9);s.forEach((v,i)=>sig[f+i]=v)}
+  return {line,sig,hist:line.map((v,i)=>v!=null&&sig[i]!=null?v-sig[i]:null)}}
+
+function series(vals){return C.t.map((t,i)=>vals[i]==null?{time:t}:{time:t,value:vals[i]})}
+function opts(h,logo=false){
+  const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+  return {height:h,autoSize:true,layout:{background:{type:'solid',color:css('--card')},textColor:css('--mute'),fontSize:11,attributionLogo:logo},
+    grid:{vertLines:{color:css('--line')},horzLines:{color:css('--line')}},rightPriceScale:{borderColor:css('--line'),minimumWidth:72},
+    timeScale:{borderColor:css('--line'),rightOffset:4,timeVisible:false},crosshair:{mode:0},handleScroll:true,handleScale:true,
+    localization:{priceFormatter:p=>Math.abs(p)>=1000?p.toFixed(0):Math.abs(p)>=1?p.toFixed(2):p.toPrecision(3)}};
+}
+function draw(){
+  charts.forEach(c=>c.remove());charts=[];
+  const up=css('--up'),dn=css('--dn'),c=C.c;
+  const ma={ma20:smaS(c,20),ma50:smaS(c,50),ma200:smaS(c,200)},rsi=rsiS(c),m=macdS(c);
+  // price pane: candles, moving averages, volume underneath
+  const pc=LightweightCharts.createChart(document.getElementById('main-pane'),opts(420,true));
+  const cs=pc.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn});
+  cs.setData(C.t.map((t,i)=>({time:t,open:C.o[i],high:C.h[i],low:C.l[i],close:c[i]})));
+  const lines={};
+  for(const k of ['ma20','ma50','ma200']){if(!document.getElementById('cb-'+k).checked)continue;
+    lines[k]=pc.addLineSeries({color:COL[k],lineWidth:k==='ma20'?1:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    lines[k].setData(series(ma[k]))}
+  const vs=pc.addHistogramSeries({priceScaleId:'vol',priceFormat:{type:'volume'},lastValueVisible:false,priceLineVisible:false});
+  pc.priceScale('vol').applyOptions({scaleMargins:{top:0.82,bottom:0}});
+  vs.setData(C.t.map((t,i)=>({time:t,value:C.v[i],color:(c[i]>=C.o[i]?up:dn)+'55'})));
+  // markers: golden / death crosses (50d through 200d) over the whole history
+  const mk=[];for(let i=1;i<c.length;i++){const a=ma.ma50,b=ma.ma200;if(a[i-1]==null||b[i-1]==null)continue;
+    if(a[i-1]<b[i-1]&&a[i]>=b[i])mk.push({time:C.t[i],position:'belowBar',color:up,shape:'arrowUp',text:'Golden'});
+    if(a[i-1]>b[i-1]&&a[i]<=b[i])mk.push({time:C.t[i],position:'aboveBar',color:dn,shape:'arrowDown',text:'Death'})}
+  cs.setMarkers(mk);
+  // RSI pane
+  const rc=LightweightCharts.createChart(document.getElementById('rsi-pane'),opts(130));
+  const rs=rc.addLineSeries({color:'#8e5ad6',lineWidth:2,priceLineVisible:false});rs.setData(series(rsi));
+  [70,30].forEach(v=>rs.createPriceLine({price:v,color:v===70?css('--warn'):css('--acc'),lineWidth:1,lineStyle:2,axisLabelVisible:true,title:''}));
+  rs.applyOptions({autoscaleInfoProvider:()=>({priceRange:{minValue:0,maxValue:100}})});rc.priceScale('right').applyOptions({scaleMargins:{top:0.06,bottom:0.06}});
+  // MACD pane
+  const mc=LightweightCharts.createChart(document.getElementById('macd-pane'),opts(150));
+  const mh=mc.addHistogramSeries({priceLineVisible:false,lastValueVisible:false});
+  mh.setData(C.t.map((t,i)=>m.hist[i]==null?{time:t}:{time:t,value:m.hist[i],color:(m.hist[i]>=0?up:dn)+'99'}));
+  const ml=mc.addLineSeries({color:COL.macd,lineWidth:2,priceLineVisible:false,crosshairMarkerVisible:false});ml.setData(series(m.line));
+  const msg=mc.addLineSeries({color:COL.sig,lineWidth:1,priceLineVisible:false,crosshairMarkerVisible:false});msg.setData(series(m.sig));
+  charts=[pc,rc,mc];
+  // keep the three panes scrolled and zoomed together, and share the crosshair
+  let syncing=false;
+  charts.forEach(ch=>ch.timeScale().subscribeVisibleLogicalRangeChange(r=>{if(syncing||!r)return;syncing=true;charts.forEach(o=>o!==ch&&o.timeScale().setVisibleLogicalRange(r));syncing=false}));
+  const anchor=[[pc,cs],[rc,rs],[mc,ml]];
+  const legend=i=>{
+    const at=i==null?c.length-1:i,f=v=>v==null?'–':fmt(v,Math.abs(v)>=1000?0:2);
+    const d=new Date(C.t[at]*1000).toISOString().slice(0,10),chg=at>0?(c[at]/c[at-1]-1)*100:null;
+    document.getElementById('lg-main').innerHTML=`<span><b>${d}</b></span><span>O ${f(C.o[at])}</span><span>H ${f(C.h[at])}</span><span>L ${f(C.l[at])}</span><span>C <b>${f(c[at])}</b> <span class="${cls(chg)}">${pc_(chg)}</span></span>`+
+      ['ma20','ma50','ma200'].filter(k=>lines[k]).map(k=>`<span style="color:${COL[k]}">${k.replace('ma','MA')} ${f(ma[k][at])}</span>`).join('')+`<span class="mu">Vol ${fmt(C.v[at],0)}</span>`;
+    document.getElementById('lg-rsi').innerHTML=`<span>RSI 14 <b class="${rsiCls(rsi[at])}">${rsi[at]==null?'–':rsi[at].toFixed(1)}</b></span>`;
+    document.getElementById('lg-macd').innerHTML=`<span style="color:${COL.macd}">MACD ${m.line[at]==null?'–':m.line[at].toFixed(3)}</span><span style="color:${COL.sig}">Signal ${m.sig[at]==null?'–':m.sig[at].toFixed(3)}</span><span class="${cls(m.hist[at])}">Hist ${m.hist[at]==null?'–':m.hist[at].toFixed(3)}</span>`;
+  };
+  const idx=new Map(C.t.map((t,i)=>[t,i]));
+  anchor.forEach(([ch])=>ch.subscribeCrosshairMove(p=>{
+    if(syncing)return;syncing=true;
+    if(!p.time){anchor.forEach(([o])=>o!==ch&&o.clearCrosshairPosition());legend(null)}
+    else{const i=idx.get(p.time);legend(i);anchor.forEach(([o,s])=>{if(o===ch)return;const v=s===cs?c[i]:s===rs?rsi[i]:m.line[i];v!=null?o.setCrosshairPosition(v,p.time,s):o.clearCrosshairPosition()})}
+    syncing=false}));
+  legend(null);setRange(range);
+}
+const pc_=v=>pc(v,2);
+function setRange(r){
+  range=r;const n=C.t.length,bars={'3m':63,'6m':126,'1y':252,'2y':n}[r]||252;
+  charts[0].timeScale().setVisibleLogicalRange({from:Math.max(0,n-bars),to:n+3});
+  document.querySelectorAll('[data-range]').forEach(b=>b.classList.toggle('on',b.dataset.range===r));
+}
+function statsHTML(){
+  const r=R,rp=rangePos(r),f=v=>v==null?'–':fmt(v,2);
+  const box=(l,v,c='')=>`<div class="stat"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`;
+  return `<div class="stats">
+    ${box('Last · day',`${f(r.last)} <span class="${cls(r.pct)}" style="font-size:13px">${pc(r.pct,2)}</span>`)}
+    ${box('1M · 3M · YTD',`<span class="${cls(r.m1)}">${pc(r.m1)}</span> · <span class="${cls(r.m3)}">${pc(r.m3)}</span> · <span class="${cls(r.ytd)}">${pc(r.ytd)}</span>`)}
+    ${box('vs S&amp;P 1M · 3M',`<span class="${cls(r.rs1)}">${pts(r.rs1)}</span> · <span class="${cls(r.rs3)}">${pts(r.rs3)}</span>`)}
+    ${box('Trend vs 50d · 200d',maPill(r)||'–')}
+    ${box('RSI 14',r.rsi==null?'–':r.rsi.toFixed(0),rsiCls(r.rsi))}
+    ${box('MACD vs signal',r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'Above':'Below'),r.macd>r.macd_sig?'up':'dn')}
+    ${box('52-week range',rp==null?'–':`${(rp*100).toFixed(0)}% <span class="mu" style="font-size:12px">(${pc(r.off_hi)} from high)</span>`)}
+    ${box('ATR 14 · volume',`${r.atr_pct==null?'–':r.atr_pct.toFixed(1)+'%'} · ${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}`)}
+    ${box('Trend score',scoreBar(r.score))}
+    ${box('TradingView rating',tvCell(r))}
+  </div>${(r.signals||[]).length?`<div style="margin-top:10px">${sigChips(r)}</div>`:''}`;
+}
+function briefText(){
+  const r=R,c=C.c,ma={a:smaS(c,20),b:smaS(c,50),d:smaS(c,200)},rsi=rsiS(c),m=macdS(c),n=c.length,L=[];
+  L.push(`Act as a technical analyst. Using ONLY the data below for ${r.label} (${r.sym}) (do not invent numbers or news), give me a chart read:`);
+  L.push('1. Trend on three horizons (short: 20d, medium: 50d, long: 200d) and where price sits against each average.');
+  L.push('2. Momentum: RSI 14 level and any divergence with price over the last 2-3 months; MACD position, recent crosses and histogram direction.');
+  L.push('3. Key levels: recent swing highs/lows, the 52-week high/low, and moving averages acting as support or resistance.');
+  L.push('4. Volume: is it confirming the latest move?');
+  L.push('5. A bull case and a bear case with the price levels that would confirm or invalidate each, and what to check on Bloomberg. Be concise, short bullets.');
+  L.push('',freshness(),'Summary: '+lineFor(r),'','Last 60 sessions (date, open, high, low, close, volume, MA20, MA50, MA200, RSI14, MACD, signal):');
+  const g=v=>v==null?'':(+v.toPrecision(5));
+  for(let i=Math.max(0,n-60);i<n;i++)L.push([new Date(C.t[i]*1000).toISOString().slice(0,10),C.o[i],C.h[i],C.l[i],c[i],C.v[i],g(ma.a[i]),g(ma.b[i]),g(ma.d[i]),rsi[i]==null?'':rsi[i].toFixed(1),g(m.line[i]),g(m.sig[i])].join(', '));
+  const w=[];for(let i=n-1;i>=Math.max(0,n-260);i-=5)w.unshift(`${new Date(C.t[i]*1000).toISOString().slice(0,10)} ${c[i]}`);
+  L.push('','Weekly closes for the past year: '+w.join('; '));
+  return L.join('\n');
+}
+function tvWidget(){
+  const host=document.getElementById('tvbox');if(!host||host.dataset.on)return;host.dataset.on=1;host.classList.add('on');
+  const sc=document.createElement('script');sc.type='text/javascript';sc.async=true;
+  sc.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+  sc.text=JSON.stringify({autosize:true,symbol:R.tvs||R.tv||R.sym,interval:'D',timezone:'Etc/UTC',style:'1',locale:'en',
+    theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',allow_symbol_change:true,
+    studies:['STD;RSI','STD;MACD','STD;SMA']});
+  host.appendChild(sc);
+}
+load(()=>{
+  const s=D.stocks[K];
+  if(!s){document.getElementById('main').innerHTML=`<section><h2>Stock not found</h2><p>No data for "${esc(K)}". It may have been removed from every list. <a class="more" href="index.html">Back to all themes</a></p></section>`;return}
+  const item=[...D.themes.flatMap(t=>t.groups.flatMap(g=>g.items)),...D.universe.flatMap(u=>u.items)].find(i=>i.k===K)||{sym:K,label:K};
+  R={...s,...item};
+  document.title=`${R.sym} · ${R.label} · Chart`;
+  document.querySelector('header h1').textContent=`${R.label} (${R.sym})`;
+  const tvUrl='https://www.tradingview.com/chart/?symbol='+encodeURIComponent(R.tvs||R.sym);
+  document.getElementById('main').innerHTML=`<section id="summary"><h2>Technical summary${R.cur?' · prices in '+esc(R.cur):''}</h2>${statsHTML()}</section>
+   <section id="chart"><h2>Daily chart</h2>
+    <div class="toolbar">${['3m','6m','1y','2y'].map(r=>`<span class="fchip" data-range="${r}">${r.toUpperCase()}</span>`).join('')}
+      <span class="key" style="margin-left:8px;font-size:12px">${['ma20','ma50','ma200'].map(k=>`<label style="margin-right:8px"><input type="checkbox" id="cb-${k}" checked> <i style="background:${COL[k]}"></i>${k.replace('ma','MA ')}</label>`).join('')}</span>
+      <a class="more" style="margin-left:auto" href="${tvUrl}" target="_blank" rel="noopener">Open in TradingView &rarr;</a></div>
+    <div class="pane" id="main-pane"><div class="legend" id="lg-main"></div></div>
+    <div class="panetitle">RSI 14 · overbought 70 / oversold 30</div><div class="pane" id="rsi-pane"><div class="legend" id="lg-rsi"></div></div>
+    <div class="panetitle">MACD 12, 26, 9</div><div class="pane" id="macd-pane"><div class="legend" id="lg-macd"></div></div>
+    <div class="note">Drag to scroll, scroll or pinch to zoom; the three panels move together. Arrows mark golden and death crosses (50-day through 200-day). Indicators use the same formulas as the screener tables. Charts by <a class="more" href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</div></section>
+   <section id="tradingview"><h2>TradingView live chart</h2><div id="tvwrap"><button class="copy" id="tvbtn">Load the TradingView chart</button>
+    <div class="note">Live, fully interactive, with TradingView's own indicators and drawing tools. Some Asian exchanges are not shown in TradingView's free embedded chart: use "Open in TradingView" above instead.</div></div><div id="tvbox"></div></section>
+   ${copyBlock('claude-brief','Chart read with Claude')}`;
+  document.getElementById('nav').innerHTML=[['summary','Summary'],['chart','Chart'],['tradingview','TradingView'],['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${l}</a>`).join('');
+  document.getElementById('tvbtn').onclick=()=>{document.getElementById('tvwrap').style.display='none';tvWidget()};
+  wireCopy(briefText);
+  fetch('charts/'+K.replace(/[^A-Za-z0-9.-]/g,'_')+'.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('chart data missing');return r.json()}).then(c=>{
+    C=c;draw();
+    document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>setRange(b.dataset.range));
+    ['ma20','ma50','ma200'].forEach(k=>document.getElementById('cb-'+k).onchange=draw);
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+  }).catch(e=>{document.getElementById('chart').insertAdjacentHTML('beforeend',`<div class="banner" style="display:block">Could not load the chart data: ${esc(e.message)}</div>`)});
+});
+</script>
+</body>
+</html>

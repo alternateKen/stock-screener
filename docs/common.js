@@ -35,6 +35,9 @@ function tvCell(r){
   const k=r.tvr>0.1?'up':r.tvr<-0.1?'dn':'mu';
   return `<span class="${k}" title="TradingView rating ${r.tvr.toFixed(2)} · moving averages ${f2(r.tv_ma)} · oscillators ${f2(r.tv_osc)}">${esc(r.tv_label)}</span>`;
 }
+const chartUrl=k=>'chart.html?k='+encodeURIComponent(k);
+// the stock's name links to its chart page (stopPropagation keeps a table row's click-to-expand working)
+const chartLink=(r,txt)=>`<a class="stk" href="${chartUrl(r.k)}" onclick="event.stopPropagation()" title="Open chart">${txt}</a>`;
 function rsiGauge(v){return `<span class="rsi"><b style="left:${Math.max(0,Math.min(100,v))}%"></b></span>`}
 function maPill(r){
   const p=(v,l)=>v==null?'':`<span class="pill ${r.last>v?'up':'dn'}">${r.last>v?'▲':'▼'} ${l}</span>`;

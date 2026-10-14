@@ -110,6 +110,44 @@ class Codes(unittest.TestCase):
         self.assertEqual(m[0][2], "Energy")
 
 
+class MemberSources(unittest.TestCase):
+    def test_ticker_column_without_header(self):
+        rows = "".join(f"<tr><td>Company number {i}</td><td>{chr(65 + i % 26)}{chr(65 + i // 26)}X</td><td>Tech</td></tr>" for i in range(40))
+        m = screen.wikipedia_members(f"<table><tr><th>Name</th><th>Code</th><th>Industry</th></tr>{rows}</table>")
+        self.assertEqual(len(m), 40)
+        self.assertEqual(m[0], ("AAX", "Company number 0", ""))
+
+    def test_nasdaq_json(self):
+        raw = json.dumps({"data": {"data": {"rows": [{"symbol": f"T{i:02d}".replace("0", "A").replace("1", "B").replace("2", "C").replace("3", "D"),
+                                                      "companyName": f"Co {i}"} for i in range(30)]}}})
+        self.assertEqual(len(screen.nasdaq_api_members(raw)), 30)
+
+    def test_sources_tried_in_order(self):
+        good = json.dumps({"data": {"data": {"rows": [{"symbol": s, "companyName": s} for s in
+                                                      [a + b for a in "ABCDE" for b in "FGHIJ"]]}}}).encode()
+        calls = []
+        def fake_get(url, tries=2, timeout=12):
+            calls.append(url)
+            if "wikipedia" in url:
+                raise ValueError("blocked")
+            return good
+        orig = screen.get
+        screen.get = fake_get
+        try:
+            u = {"groups": [{"name": "Nasdaq-100", "wiki": "w", "sources": ["https://en.wikipedia.org/x", "https://api.nasdaq.com/y"],
+                             "index": None, "items": []},
+                            {"name": "S&P 500", "wiki": None, "sources": [], "index": None,
+                             "items": [{"cands": ["AF"], "sym": "AF", "label": "AF", "exch": "", "sector": "Energy"}]}]}
+            errors = []
+            screen.fill_universe(u, errors)
+            screen.borrow_sectors(u)
+        finally:
+            screen.get = orig
+        self.assertEqual(len(u["groups"][0]["items"]), 25)
+        self.assertIn("api.nasdaq.com", errors[0])
+        self.assertEqual(u["groups"][0]["items"][0]["sector"], "Energy")   # borrowed from the S&P 500 group
+
+
 class RealFiles(unittest.TestCase):
     """Every theme and universe file in the repository parses, and every line becomes a ticker."""
     def test_files_parse(self):
@@ -142,6 +180,10 @@ class RealFiles(unittest.TestCase):
             data = screen.build(d, fetch=lambda s: {**fake(s), "exch": "NMS"} if "." not in s else fake(s),
                                 fetch_news=lambda s: [{"title": "t", "link": "l", "time": ""}], load_universe=False, fetch_tv=tv)
             self.assertEqual(data["stocks"]["NVDA"]["tv_label"], "Buy")
+            with open(os.path.join(d, "charts", screen.chart_file("BRK-B"))) as fh:
+                cp = json.load(fh)
+            self.assertEqual(len({len(cp[x]) for x in "tohlcv"}), 1)
+            self.assertTrue(os.path.exists(os.path.join(d, "charts", "0700.HK.json")))
             self.assertTrue(data["themes"])
             self.assertTrue(any(e.startswith("SNDK") for e in data["errors"]))
             with open(os.path.join(d, "data.json")) as fh:

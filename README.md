@@ -4,6 +4,7 @@ One website with all your themed watchlists plus a broad technical screen. It re
 
 - **Home page:** one card per theme (day / 1M / YTD, relative strength vs the S&P 500, breadth, average trend score, signal counts, best and worst basket). Below that, a summary of the broad screen.
 - **Theme pages:** one per file in `themes/`. Each has basket cards, best/worst today, technical signals, unusual volume, RSI extremes, sortable tables (Day, 1W, 1M, YTD, vs S&P 3M, 52-week range, 50d/200d trend, RSI 14, volume, trend score), headlines, a live TradingView price box and a **Copy brief for Claude** button.
+- **Chart pages:** click any stock's name for a daily candle chart (3M / 6M / 1Y / 2Y) with 20/50/200-day moving averages, volume, golden/death cross markers, and RSI 14 and MACD panels underneath, all moving together. Each page also has its technical summary, an optional live TradingView chart, and a **Copy chart read for Claude** button that sends Claude the last 60 sessions of prices and indicators.
 - **Signals page:** about 650 stocks (S&P 500 and Nasdaq-100 members, loaded live from Wikipedia, plus curated large caps in Hong Kong, China A-shares, Taiwan, Korea and Japan). It shows breadth by GICS sector and market, and a filterable list of every stock with a signal. It has its own Claude brief.
 
 Companion page: [macro-updates](https://github.com/alternateKen/macro-updates) (macro dashboard).
@@ -30,7 +31,7 @@ SHOP | Shopify | NASDAQ             <- optional 3rd column: TradingView exchange
 
 - **New theme:** add a new `.txt` file to `themes/`. No new repository or workflow is needed.
 - **New tickers you haven't sorted yet:** paste them into `themes/inbox.txt`. They show up under "Inbox" straight away, and Claude can sort them into themes later.
-- **Broad screen universe:** `universe.txt`. US indices come from Wikipedia (`@wikipedia`); Asian lists are plain stock lists.
+- **Broad screen universe:** `universe.txt`. US index members come from Wikipedia (`@wikipedia`, which also gives the GICS sector). If Wikipedia can't be read, the backup sources listed under it (`@source`) are tried in order: Nasdaq's own Nasdaq-100 list, then Slickcharts. Members from a backup take their sector from the S&P 500 list. Asian lists are plain stock lists.
 - A stock that appears in several themes is downloaded only once.
 - Only tickers go in these files, never position sizes: this repository and its site are public.
 
@@ -55,7 +56,7 @@ About 6:15am New York time (after every Asian market has closed), then every 30 
 
 ## Files
 `scripts/screen.py` (download + indicators + signals, standard Python only), `tests/` (offline checks run before every build),
-`docs/` (the three pages: `index.html`, `theme.html`, `screen.html`, plus `common.js` and `style.css`),
+`docs/` (the pages: `index.html`, `theme.html`, `screen.html`, `chart.html`, plus `common.js`, `style.css` and `vendor/` with TradingView's open-source Lightweight Charts library, Apache 2.0),
 `themes/*.txt` (your lists), `universe.txt` (broad screen), `.github/workflows/update.yml` (schedule).
 
 ## Bloomberg (planned)

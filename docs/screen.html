@@ -75,7 +75,7 @@ function listHTML(){
   const rows=sortRows(filtered(),ST,COLS),shown=rows.slice(0,MAXROWS);
   const th=COLS.map(([k,l,,, sm])=>`<th class="${ST.k===k?'on':''} ${sm?'hide-sm':''}" data-k="${k}">${l}${ST.k===k?(ST.dir>0?' ↑':' ↓'):''}</th>`).join('');
   return `<div class="note" style="margin:0 0 6px">${rows.length} stocks${rows.length>MAXROWS?`, showing the first ${MAXROWS} (narrow the filters or sort)`:''}</div>
-   <div class="scroll"><table><tr>${th}</tr>${shown.map(r=>`<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)} · ${fmt(r.last,2)}${r.cur&&r.cur!=='USD'?' '+esc(r.cur):''}</small></td>${COLS.slice(1).map(c=>c[2](r)).join('')}</tr>`).join('')}</table></div>`;
+   <div class="scroll"><table><tr>${th}</tr>${shown.map(r=>`<tr><td class="nm">${chartLink(r,esc(r.label))}<small>${esc(r.sym)} · ${fmt(r.last,2)}${r.cur&&r.cur!=='USD'?' '+esc(r.cur):''}</small></td>${COLS.slice(1).map(c=>c[2](r)).join('')}</tr>`).join('')}</table></div>`;
 }
 function draw(){
   document.getElementById('flt').innerHTML=filtersHTML();
