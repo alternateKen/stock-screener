@@ -1,6 +1,6 @@
 # Stock Screener
 
-One website with all your themed watchlists plus a broad technical screen. It refreshes itself during US market hours, using free Yahoo Finance data and no API keys.
+One website with all your themed watchlists plus a broad technical screen. It refreshes itself during US market hours, using free Yahoo Finance prices, TradingView's technical rating and Wikipedia index membership, with no API keys.
 
 - **Home page:** one card per theme (day / 1M / YTD, relative strength vs the S&P 500, breadth, average trend score, signal counts, best and worst basket). Below that, a summary of the broad screen.
 - **Theme pages:** one per file in `themes/`. Each has basket cards, best/worst today, technical signals, unusual volume, RSI extremes, sortable tables (Day, 1W, 1M, YTD, vs S&P 3M, 52-week range, 50d/200d trend, RSI 14, volume, trend score), headlines, a live TradingView price box and a **Copy brief for Claude** button.
@@ -43,6 +43,8 @@ SHOP | Shopify | NASDAQ             <- optional 3rd column: TradingView exchange
 | MACD up / down | MACD (12, 26, 9) crossed its signal line in the last 3 sessions |
 | RSI ≥ 70 / ≤ 30 | Wilder RSI 14, same as TradingView's default |
 | Volume surge | Volume at least 2× the 20-day average (partial during the day) |
+
+**TradingView rating:** TradingView's own technical summary (Strong buy … Strong sell, built from about 26 moving averages and oscillators), from its screener. It's a second opinion next to our own signals; the Claude briefs ask Claude to flag where the two disagree. It comes from an undocumented TradingView endpoint, so if TradingView changes or blocks it, the column goes blank and everything else keeps working.
 
 **Trend score (0–6):** one point each for price above its 50-day average, above its 200-day average, 50-day above 200-day, MACD above its signal line, RSI above 50, and beating the S&P 500 over 3 months.
 

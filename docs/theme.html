@@ -68,22 +68,23 @@ const COLS=[
  ['rsi','RSI 14',r=>`<td class="hide-sm">${r.rsi==null?'–':`${rsiGauge(r.rsi)} <span class="${rsiCls(r.rsi)}" style="display:inline-block;min-width:22px">${r.rsi.toFixed(0)}</span>`}</td>`,null,1],
  ['vol_x','Vol ×',r=>`<td class="hide-sm ${r.vol_x>=1.8?'up':''}">${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}</td>`,null,1],
  ['score','Score',r=>`<td class="hide-sm">${scoreBar(r.score)}</td>`,null,1],
+ ['tvr','TradingView',r=>`<td class="hide-sm">${tvCell(r)}</td>`,null,1],
 ];
 function basketHTML(g,i){
   const st=sortState[g.name]||{k:null,dir:-1};
   const rows=sortRows(groupRows(g),st,COLS);
   const th=COLS.map(([k,l,,, sm])=>`<th class="${st.k===k?'on':''} ${sm?'hide-sm':''}" data-b="${i}" data-k="${k}">${l}${st.k===k?(st.dir>0?' ↑':' ↓'):''}</th>`).join('');
   const body=rows.map((r,j)=>{
-    if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="11" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
+    if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="12" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
     const nws=(r.news||[]).map(n=>`<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.title)}</a>`).join('')||'<span class="mu">No recent headlines</span>';
-    const extra=`<div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.cur?' · '+esc(r.cur):''}</div>`;
+    const extra=`<div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.tv_industry?' · '+esc(r.tv_industry):''}${r.cur?' · '+esc(r.cur):''}</div>`;
     return `<tr class="main" data-n="${i}-${j}"><td class="nm">${esc(r.label)}<small>${esc(r.sym)} · ${fmt(r.last,2)}</small>${(r.signals||[]).length?`<div>${sigChips(r,3)}</div>`:''}</td>
       ${COLS.slice(1).map(c=>c[2](r)).join('')}<td class="${cls(r.m1)}">${spark(r.spark)}</td></tr>
-      <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="12">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
+      <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="13">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
   const s=stats(groupRows(g));
   return `<section id="${slug(g.name)}"><h2>${esc(g.name)} · avg day <span class="${cls(s.day)}">${pc(s.day,2)}</span> · 1M <span class="${cls(s.m1)}">${pc(s.m1)}</span></h2>
     <div class="scroll"><table><tr>${th}<th>45d</th></tr>${body}</table></div>
-    <div class="note">Click a column to sort, click a stock for its details and latest headlines. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months).</div></section>`;
+    <div class="note">Click a column to sort, click a stock for its details and latest headlines. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months). TradingView = its own technical rating (Strong buy to Strong sell, from 26 moving averages and oscillators), shown as a second opinion; hover for the parts.</div></section>`;
 }
 function liveBlock(){
   return `<section id="live"><h2>Live prices from TradingView (refreshes every time you reload this page)</h2>
@@ -107,7 +108,7 @@ function briefText(){
   L.push('3. The technical signals listed (52-week highs/lows, 50d/200d crosses, golden/death crosses, MACD crosses, RSI extremes, volume surges): which look like real breakouts or breakdowns and which look like noise? Use volume and relative strength to judge.');
   L.push('4. Which headlines matter for the setups, and what to verify before acting.');
   L.push('5. A short list: best-looking long setups, names to avoid or trim, and 3-5 things to check on Bloomberg. Be concise, short bullets.');
-  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average volume. ATR = 14-day average true range as % of price.');
+  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average volume. ATR = 14-day average true range as % of price. TradingView rating = TradingView\'s own technical summary (-1 strong sell to +1 strong buy), a second opinion: flag names where it disagrees with the trend score.');
   L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
   T.groups.forEach(g=>{
     const s=stats(groupRows(g));

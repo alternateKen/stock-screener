@@ -220,7 +220,7 @@ def yahoo_bars(symbol):
     tm = meta.get("regularMarketTime", rows[-1][0])
     return {"t": [r[0] for r in rows], "c": [r[1] for r in rows], "h": [r[2] for r in rows], "l": [r[3] for r in rows],
             "v": [r[4] or 0 for r in rows], "last": meta.get("regularMarketPrice"), "time": tm,
-            "currency": meta.get("currency"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
+            "currency": meta.get("currency"), "exch": meta.get("exchangeName"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
 
 
 def news(feed_sym, limit=3):
@@ -265,14 +265,49 @@ def yahoo_candidates(code):
     return [base + x for x in BBG_SUFFIX.get(cc, [""])], code
 
 
-def tv_symbol(ysym, exch_override=""):
+# Yahoo exchange codes for US listings -> TradingView exchange prefix
+US_EXCH = {"NMS": "NASDAQ", "NGM": "NASDAQ", "NCM": "NASDAQ", "NAS": "NASDAQ", "NYQ": "NYSE", "NYS": "NYSE",
+           "PCX": "AMEX", "ASE": "AMEX", "AMX": "AMEX", "BTS": "CBOE", "BATS": "CBOE"}
+
+
+def tv_symbol(ysym, exch_override="", yahoo_exch=""):
+    if not exch_override and yahoo_exch in US_EXCH:
+        exch_override = US_EXCH[yahoo_exch]
     for sfx in sorted(TV_EXCH, key=len, reverse=True):
         if ysym.endswith(sfx):
             base, ex = ysym[: -len(sfx)], TV_EXCH[sfx]
             if ex == "HKEX":
                 base = base.lstrip("0") or "0"
             return f"{exch_override or ex}:{base}"
-    return f"{exch_override}:{ysym}" if exch_override else ysym.replace("-", ".")
+    base = ysym.replace("-", ".")   # TradingView writes share classes with a dot (BRK.B)
+    return f"{exch_override}:{base}" if exch_override else base
+
+
+# ---------------- TradingView technical rating ----------------
+TV_COLS = ["Recommend.All", "Recommend.MA", "Recommend.Other", "sector", "industry"]
+
+
+def tv_label(v):
+    """TradingView's own buckets for its technical rating (-1 .. +1)."""
+    if v is None:
+        return None
+    return ("Strong buy" if v > 0.5 else "Buy" if v > 0.1 else "Neutral" if v >= -0.1 else "Sell" if v >= -0.5 else "Strong sell")
+
+
+def tv_ratings(tv_syms, chunk=400):
+    """{"NASDAQ:AAPL": {...}} from TradingView's screener endpoint (undocumented, so any failure just leaves the column blank)."""
+    out = {}
+    syms = sorted({s for s in tv_syms if ":" in s})
+    for i in range(0, len(syms), chunk):
+        body = json.dumps({"symbols": {"tickers": syms[i:i + chunk], "query": {"types": []}}, "columns": TV_COLS}).encode()
+        req = urllib.request.Request("https://scanner.tradingview.com/global/scan", data=body,
+                                     headers={**UA, "Content-Type": "application/json", "Origin": "https://www.tradingview.com"})
+        with urllib.request.urlopen(req, timeout=25) as r:
+            for row in json.loads(r.read()).get("data", []):
+                d = dict(zip(TV_COLS, row.get("d", [])))
+                out[row["s"]] = {"tvr": d.get("Recommend.All"), "tv_ma": d.get("Recommend.MA"), "tv_osc": d.get("Recommend.Other"),
+                                 "tv_sector": d.get("sector"), "tv_industry": d.get("industry")}
+    return out
 
 
 # ---------------- list files ----------------
@@ -384,6 +419,17 @@ def wikipedia_members(html, min_rows=20):
     return best
 
 
+# Used only when Wikipedia cannot be read AND there is no previously published list (approximate membership)
+NDX_FALLBACK = ["AAPL", "ABNB", "ADBE", "ADI", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN", "AMZN", "APP", "ARM", "ASML", "AVGO", "AXON",
+                "AZN", "BIIB", "BKNG", "BKR", "CCEP", "CDNS", "CDW", "CEG", "CHTR", "CMCSA", "COST", "CPRT", "CRWD", "CSCO", "CSGP", "CSX",
+                "CTAS", "CTSH", "DASH", "DDOG", "DXCM", "EA", "EXC", "FANG", "FAST", "FTNT", "GEHC", "GFS", "GILD", "GOOG", "GOOGL", "HON",
+                "IDXX", "INTC", "INTU", "ISRG", "KDP", "KHC", "KLAC", "LIN", "LRCX", "LULU", "MAR", "MCHP", "MDB", "MDLZ", "MELI", "META",
+                "MNST", "MRVL", "MSFT", "MSTR", "MU", "NFLX", "NVDA", "NXPI", "ODFL", "ON", "ORLY", "PANW", "PAYX", "PCAR", "PDD", "PEP",
+                "PLTR", "PYPL", "QCOM", "REGN", "ROP", "ROST", "SBUX", "SHOP", "SNPS", "TEAM", "TMUS", "TRI", "TSLA", "TTD", "TTWO", "TXN",
+                "VRSK", "VRTX", "WBD", "WDAY", "XEL", "ZS"]
+FALLBACKS = {"Nasdaq": NDX_FALLBACK}
+
+
 def previous_data():
     """The data.json this site published last time, used when Wikipedia cannot be read (GitHub Actions only)."""
     repo = os.environ.get("GITHUB_REPOSITORY", "")
@@ -409,10 +455,14 @@ def fill_universe(universe, errors):
             if prev is None:
                 prev = previous_data() or {}
             old = next((u for u in prev.get("universe", []) if u["name"] == g["name"]), None)
+            fb = next((v for k, v in FALLBACKS.items() if k.lower() in g["name"].lower()), None)
             if old:
                 g["items"] = [{"cands": [i["k"]], "sym": i["sym"], "label": i["label"], "exch": "", "sector": i.get("sector", "")}
                               for i in old["items"]]
                 errors.append(f"{g['name']}: Wikipedia unreadable ({e}); reused last published member list")
+            elif fb:
+                g["items"] = [{"cands": [s], "sym": s, "label": s, "exch": "", "sector": ""} for s in fb]
+                errors.append(f"{g['name']}: Wikipedia unreadable ({e}); used the built-in member list")
             else:
                 errors.append(f"{g['name']}: Wikipedia unreadable ({e}); group skipped")
 
@@ -422,7 +472,7 @@ def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
-def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True):
+def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_tv=tv_ratings):
     errors = []
     theme_files = sorted(f for f in os.listdir(os.path.join(ROOT, "themes")) if f.endswith(".txt"))
     themes = []
@@ -487,11 +537,25 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True):
             missing += 1
             errors.append(f"{k}: {e}")
             continue
-        r["ysym"], r["cur"] = b["ysym"], b.get("currency")
+        r["ysym"], r["cur"], r["exch"] = b["ysym"], b.get("currency"), b.get("exch")
         if k in hl:
             r["news"] = hl[k]
         stocks[k] = r
     print(f"fetched {len(stocks)}/{len(jobs)} stocks in {time.time() - t0:.0f}s")
+    # TradingView's technical rating, as a second opinion next to our own indicators
+    overrides = {it["k"]: it["exch"] for coll in (themes, [universe]) for t in coll for g in t["groups"] for it in g["items"] if it["exch"]}
+    for k, r in stocks.items():
+        r["tvs"] = tv_symbol(r["ysym"], overrides.get(k, ""), r.get("exch") or "")
+    try:
+        tv = fetch_tv([r["tvs"] for r in stocks.values()])
+        for r in stocks.values():
+            x = tv.get(r["tvs"])
+            if x:
+                r.update(x)
+                r["tv_label"] = tv_label(x["tvr"])
+        print(f"TradingView ratings for {sum(1 for r in stocks.values() if r.get('tv_label'))}/{len(stocks)} stocks")
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"TradingView ratings unavailable this run: {e}")
     if len(stocks) < max(1, len(jobs) // 2):
         for e in errors[:15]:
             print("WARN", e)
@@ -501,8 +565,9 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True):
     def items(g, with_sector=False):
         out = []
         for it in g["items"]:
-            ysym = stocks.get(it["k"], {}).get("ysym", it["cands"][0])
-            row = {"k": it["k"], "sym": it["sym"], "label": it["label"], "tv": tv_symbol(ysym, it["exch"])}
+            st = stocks.get(it["k"], {})
+            row = {"k": it["k"], "sym": it["sym"], "label": it["label"],
+                   "tv": st.get("tvs") or tv_symbol(it["cands"][0], it["exch"])}
             if with_sector:
                 row["sector"] = it.get("sector") or g["name"]
             out.append(row)

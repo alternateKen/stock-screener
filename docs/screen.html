@@ -12,7 +12,9 @@
 <script src="common.js"></script>
 <script>
 header('Signals: broad technical screen','<a href="index.html">&larr; All themes</a> &nbsp;·&nbsp; ');
-let ALL=[];const F={uni:'',sector:'',q:'',dir:0,sig:new Set(),only:true};const ST={k:'nsig',dir:-1};const MAXROWS=300;
+let ALL=[];const F={uni:'',sector:'',q:'',dir:0,sig:new Set(),only:true,tv:''};
+const TVR={'':'Any TradingView rating','sb':'TradingView: Strong buy','b':'TradingView: Buy or better','s':'TradingView: Sell or worse','ss':'TradingView: Strong sell'};
+const tvOk=r=>!F.tv||(r.tvr!=null&&(F.tv==='sb'?r.tvr>0.5:F.tv==='b'?r.tvr>0.1:F.tv==='s'?r.tvr<-0.1:r.tvr<-0.5));const ST={k:'nsig',dir:-1};const MAXROWS=300;
 
 function buildRows(){
   // a stock in several universes (e.g. S&P 500 and Nasdaq-100) is one row
@@ -27,7 +29,7 @@ function buildRows(){
 function filtered(){
   const q=F.q.trim().toLowerCase();
   return ALL.filter(r=>(!F.uni||r.unis.includes(F.uni))&&(!F.sector||r.sector===F.sector)
-    &&(!q||r.sym.toLowerCase().includes(q)||(r.label||'').toLowerCase().includes(q))
+    &&tvOk(r)&&(!q||r.sym.toLowerCase().includes(q)||(r.label||'').toLowerCase().includes(q))
     &&(!F.only||(r.signals||[]).some(s=>(!F.sig.size||F.sig.has(s.k))&&(!F.dir||s.d===F.dir))));
 }
 function breadth(){
@@ -50,6 +52,7 @@ function filtersHTML(){
   return `<div class="filters">
     <select id="fu"><option value="">All universes (${ALL.length})</option>${unis.map(u=>`<option ${F.uni===u?'selected':''}>${esc(u)}</option>`).join('')}</select>
     <select id="fs"><option value="">All sectors / markets</option>${secs.map(s=>`<option ${F.sector===s?'selected':''}>${esc(s)}</option>`).join('')}</select>
+    <select id="ft">${Object.entries(TVR).map(([k,l])=>`<option value="${k}" ${F.tv===k?'selected':''}>${l}</option>`).join('')}</select>
     <input id="fq" placeholder="Search ticker or name" value="${esc(F.q)}" size="18">
     <span class="fchip ${F.dir===0?'on':''}" data-dir="0">All</span><span class="fchip ${F.dir===1?'on':''}" data-dir="1">Bullish</span><span class="fchip ${F.dir===-1?'on':''}" data-dir="-1">Bearish</span>
     <label style="font-size:12px"><input type="checkbox" id="fo" ${F.only?'checked':''}> only stocks with signals</label></div>
@@ -65,6 +68,7 @@ const COLS=[
  ['rsi','RSI',r=>`<td class="${rsiCls(r.rsi)}">${r.rsi==null?'–':r.rsi.toFixed(0)}</td>`],
  ['vol_x','Vol ×',r=>`<td class="hide-sm ${r.vol_x>=2?'up':''}">${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}</td>`,null,1],
  ['score','Score',r=>`<td class="hide-sm">${scoreBar(r.score)}</td>`,null,1],
+ ['tvr','TradingView',r=>`<td class="hide-sm">${tvCell(r)}</td>`,null,1],
  ['nsig','Signals',r=>`<td class="sigs">${sigChips(r)||'<span class="mu">–</span>'}</td>`],
 ];
 function listHTML(){
@@ -78,6 +82,7 @@ function draw(){
   document.getElementById('lst').innerHTML=listHTML();
   document.getElementById('fu').onchange=e=>{F.uni=e.target.value;F.sector='';document.getElementById('br').innerHTML=breadth();wireBreadth();draw()};
   document.getElementById('fs').onchange=e=>{F.sector=e.target.value;draw()};
+  document.getElementById('ft').onchange=e=>{F.tv=e.target.value;draw()};
   const fq=document.getElementById('fq');fq.oninput=e=>{F.q=e.target.value;document.getElementById('lst').innerHTML=listHTML();wireSort()};
   document.getElementById('fo').onchange=e=>{F.only=e.target.checked;draw()};
   document.querySelectorAll('[data-dir]').forEach(c=>c.onclick=()=>{F.dir=+c.dataset.dir;draw()});
@@ -99,19 +104,19 @@ function briefText(){
   L.push('3. Clusters: several names in the same sector or supply chain flashing the same signal.');
   L.push('4. What looks like noise or is likely to fail (low volume, against the trend, RSI already stretched).');
   L.push('5. A shortlist of 5-10 names to look at more closely, and what to check on Bloomberg. Be concise, short bullets.');
-  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average.');
+  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average. TradingView rating = TradingView\'s own technical summary, a second opinion: note where it disagrees with our signals.');
   L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
   const groups={};ALL.forEach(r=>{if(!F.uni||r.unis.includes(F.uni))(groups[r.sector]=groups[r.sector]||[]).push(r)});
   L.push('','## Breadth by sector / market');
   Object.entries(groups).forEach(([k,rs])=>{const s=stats(rs);L.push(`${k}: ${s.n} names, above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}, avg RSI ${f2(s.rsi,0)}, avg 1M ${f2(s.m1)}%, avg vs S&P 3M ${f2(s.rs3,1)} pts, signals ${s.bull} bullish / ${s.bear} bearish`)});
-  L.push('',`## Stocks with signals (filter: ${F.sig.size?[...F.sig].map(k=>SIGNALS[k][0]).join(', '):'all signals'}${F.dir?F.dir>0?', bullish only':', bearish only':''}; top ${rows.length} by number of signals)`);
+  L.push('',`## Stocks with signals (filter: ${F.sig.size?[...F.sig].map(k=>SIGNALS[k][0]).join(', '):'all signals'}${F.dir?F.dir>0?', bullish only':', bearish only':''}${F.tv?', '+TVR[F.tv]:''}; top ${rows.length} by number of signals)`);
   rows.forEach(r=>L.push(`[${r.sector}] `+lineFor(r)));
   return L.join('\n');
 }
 load(()=>{
   buildRows();
   document.getElementById('main').innerHTML=`<div id="br"></div><section id="list"><h2>Screen</h2><div id="flt"></div><div id="lst"></div>
-    <div class="note">Signals: new 52-week closing high/low; price crossing the 50- or 200-day average in the last 3 sessions; golden/death cross (50d through 200d) in the last 5; MACD(12,26,9) crossing its signal line in the last 3; RSI 14 at or above 70 / at or below 30; volume at least 2× the 20-day average. Asian prices are in local currency.</div>${errorsBlock()}</section>`+copyBlock('claude-brief','Signals brief with Claude');
+    <div class="note">Signals: new 52-week closing high/low; price crossing the 50- or 200-day average in the last 3 sessions; golden/death cross (50d through 200d) in the last 5; MACD(12,26,9) crossing its signal line in the last 3; RSI 14 at or above 70 / at or below 30; volume at least 2× the 20-day average. TradingView = TradingView's own technical rating (second opinion). Asian prices are in local currency.</div>${errorsBlock()}</section>`+copyBlock('claude-brief','Signals brief with Claude');
   document.getElementById('br').innerHTML=breadth();wireBreadth();
   document.getElementById('nav').innerHTML=[['breadth','Breadth'],['list','Screen'],['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${l}</a>`).join('');
   draw();

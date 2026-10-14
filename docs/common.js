@@ -29,6 +29,12 @@ function scoreBar(s){
 function sigChips(r,max=9){
   return (r.signals||[]).slice(0,max).map(s=>`<span class="sig ${s.d>0?'b':s.d<0?'s':''}">${esc(s.t)}</span>`).join('');
 }
+// TradingView technical rating (-1..+1, from its screener): label plus moving-average / oscillator parts on hover
+function tvCell(r){
+  if(r.tv_label==null)return '<span class="mu">–</span>';
+  const k=r.tvr>0.1?'up':r.tvr<-0.1?'dn':'mu';
+  return `<span class="${k}" title="TradingView rating ${r.tvr.toFixed(2)} · moving averages ${f2(r.tv_ma)} · oscillators ${f2(r.tv_osc)}">${esc(r.tv_label)}</span>`;
+}
 function rsiGauge(v){return `<span class="rsi"><b style="left:${Math.max(0,Math.min(100,v))}%"></b></span>`}
 function maPill(r){
   const p=(v,l)=>v==null?'':`<span class="pill ${r.last>v?'up':'dn'}">${r.last>v?'▲':'▼'} ${l}</span>`;
@@ -48,7 +54,7 @@ function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];ret
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>

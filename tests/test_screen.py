@@ -94,6 +94,13 @@ class Codes(unittest.TestCase):
         self.assertEqual(screen.tv_symbol("0700.HK"), "HKEX:700")
         self.assertEqual(screen.tv_symbol("BRK-B"), "BRK.B")
         self.assertEqual(screen.tv_symbol("SHOP", "NASDAQ"), "NASDAQ:SHOP")
+        self.assertEqual(screen.tv_symbol("AAPL", "", "NMS"), "NASDAQ:AAPL")
+        self.assertEqual(screen.tv_symbol("BRK-B", "", "NYQ"), "NYSE:BRK.B")
+        self.assertEqual(screen.tv_symbol("2330.TW", "", "TAI"), "TWSE:2330")
+
+    def test_tv_label(self):
+        self.assertEqual([screen.tv_label(v) for v in (0.6, 0.3, 0, -0.3, -0.7, None)],
+                         ["Strong buy", "Buy", "Neutral", "Sell", "Strong sell", None])
 
     def test_wikipedia_table(self):
         rows = "".join(f"<tr><td>T{i:02d}</td><td>Co {i}</td><td>Energy</td><td>Oil</td></tr>" for i in range(30))
@@ -127,7 +134,14 @@ class RealFiles(unittest.TestCase):
             return bars(c, [random.randint(5, 30) * 100_000 for _ in c])
 
         with tempfile.TemporaryDirectory() as d:
-            data = screen.build(d, fetch=fake, fetch_news=lambda s: [{"title": "t", "link": "l", "time": ""}], load_universe=False)
+            b = fake("X")
+            b["exch"] = "NMS"
+            def tv(syms):
+                self.assertIn("NASDAQ:NVDA", syms)
+                return {"NASDAQ:NVDA": {"tvr": 0.4, "tv_ma": 0.6, "tv_osc": 0.1, "tv_sector": "Electronic Technology", "tv_industry": "Semiconductors"}}
+            data = screen.build(d, fetch=lambda s: {**fake(s), "exch": "NMS"} if "." not in s else fake(s),
+                                fetch_news=lambda s: [{"title": "t", "link": "l", "time": ""}], load_universe=False, fetch_tv=tv)
+            self.assertEqual(data["stocks"]["NVDA"]["tv_label"], "Buy")
             self.assertTrue(data["themes"])
             self.assertTrue(any(e.startswith("SNDK") for e in data["errors"]))
             with open(os.path.join(d, "data.json")) as fh:
