@@ -59,5 +59,7 @@ About 6:15am New York time (after every Asian market has closed), then every 30 
 `docs/` (the pages: `index.html`, `theme.html`, `screen.html`, `chart.html`, plus `common.js`, `style.css` and `vendor/` with TradingView's open-source Lightweight Charts library, Apache 2.0),
 `themes/*.txt` (your lists), `universe.txt` (broad screen), `.github/workflows/update.yml` (schedule).
 
-## Bloomberg (planned)
-GitHub cannot connect to Bloomberg. The plan is a small script on the PC that runs Bloomberg Anywhere (xbbg + Windows Task Scheduler, once a day). It would pull index members and weights, Asian price history and consensus data in a few bulk queries and save them here automatically, with no typing. Only derived signals would be shown on this public site, never raw Bloomberg data.
+## Bloomberg (in progress)
+GitHub can't connect to Bloomberg, so a small script will run on the PC where you're logged in to Bloomberg (your main terminal). Once a day it will pull index members and weights, Asian price history and consensus data in a few bulk requests and save them here automatically, with no typing. Only derived signals are shown on this public site, never raw Bloomberg data.
+
+**Start here:** [`bloomberg/SETUP.md`](bloomberg/SETUP.md) is a plain-English guide. Its first step is a 2-minute Excel test, then `bloomberg/check_connection.bat`, which only reads a few numbers and shows them on your screen.

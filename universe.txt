@@ -14,9 +14,10 @@
 @source https://www.slickcharts.com/sp500
 
 [Nasdaq-100]
+# Wikipedia's Nasdaq-100 page no longer carries the member table (Oct 2026), so Nasdaq's own list comes first
 @index ^NDX
-@wikipedia https://en.wikipedia.org/wiki/Nasdaq-100
 @source https://api.nasdaq.com/api/quote/list-type/nasdaq100
+@wikipedia https://en.wikipedia.org/wiki/Nasdaq-100
 @source https://www.slickcharts.com/nasdaq100
 
 [China H-shares]
