@@ -1,0 +1,125 @@
+# GICS SECTORS theme: the sector ETFs plus the largest US companies in each of the 11 GICS sectors.
+# Edit on GitHub (pencil icon) and save: the site rebuilds itself. Format notes are at the end of this file.
+@title GICS Sectors
+@description The 11 sector ETFs and the mega-cap leaders inside each sector, to see where US leadership is rotating.
+@order 10
+
+[Sector ETFs]
+XLK | Technology
+XLC | Communication Services
+XLY | Consumer Discretionary
+XLP | Consumer Staples
+XLV | Health Care
+XLF | Financials
+XLI | Industrials
+XLE | Energy
+XLU | Utilities
+XLRE | Real Estate
+XLB | Materials
+RSP | S&P 500 Equal Weight
+
+[Information Technology]
+NVDA | Nvidia
+AAPL | Apple
+MSFT | Microsoft
+AVGO | Broadcom
+ORCL | Oracle
+AMD | Advanced Micro Devices
+CRM | Salesforce
+CSCO | Cisco
+
+[Communication Services]
+GOOGL | Alphabet
+META | Meta Platforms
+NFLX | Netflix
+TMUS | T-Mobile US
+DIS | Walt Disney
+VZ | Verizon
+T | AT&T
+
+[Consumer Discretionary]
+AMZN | Amazon
+TSLA | Tesla
+HD | Home Depot
+MCD | McDonald's
+BKNG | Booking Holdings
+TJX | TJX Companies
+LOW | Lowe's
+NKE | Nike
+
+[Consumer Staples]
+WMT | Walmart
+COST | Costco
+PG | Procter & Gamble
+KO | Coca-Cola
+PEP | PepsiCo
+PM | Philip Morris International
+MDLZ | Mondelez
+
+[Health Care]
+LLY | Eli Lilly
+JNJ | Johnson & Johnson
+ABBV | AbbVie
+UNH | UnitedHealth
+MRK | Merck
+ISRG | Intuitive Surgical
+TMO | Thermo Fisher
+ABT | Abbott Laboratories
+
+[Financials]
+BRK/B US | Berkshire Hathaway
+JPM | JPMorgan Chase
+V | Visa
+MA | Mastercard
+BAC | Bank of America
+GS | Goldman Sachs
+MS | Morgan Stanley
+BLK | BlackRock
+
+[Industrials]
+GE | GE Aerospace
+CAT | Caterpillar
+RTX | RTX
+UBER | Uber
+HON | Honeywell
+BA | Boeing
+ETN | Eaton
+UNP | Union Pacific
+
+[Energy]
+XOM | Exxon Mobil
+CVX | Chevron
+COP | ConocoPhillips
+EOG | EOG Resources
+SLB | SLB
+PSX | Phillips 66
+WMB | Williams Companies
+
+[Utilities]
+NEE | NextEra Energy
+SO | Southern Co
+DUK | Duke Energy
+CEG | Constellation Energy
+VST | Vistra
+AEP | American Electric Power
+
+[Real Estate]
+PLD | Prologis
+AMT | American Tower
+EQIX | Equinix
+WELL | Welltower
+SPG | Simon Property
+O | Realty Income
+
+[Materials]
+LIN | Linde
+SHW | Sherwin-Williams
+APD | Air Products
+ECL | Ecolab
+NEM | Newmont
+FCX | Freeport-McMoRan
+
+# Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
+# Bloomberg style codes work ("BRK/B US", "2330 TT", "0700 HK", "7203 JP", "600519 CH", "005930 KS").
+# Optional third column = TradingView exchange if the live box says "symbol not found":  SHOP | Shopify | NASDAQ
+# Only tickers here, never position sizes: this repository is public.

@@ -1,0 +1,80 @@
+# AGENTIC AI theme (moved here from the agentic-watchlist repository).
+@title Agentic AI
+@description Companies positioned for AI agents: the apps agents use, the network and security they run on, payments, and the orchestration hardware.
+@order 50
+#
+# Format:   [Basket name]    starts a new basket
+#           TICKER | Company name        one stock per line
+# Optional third column = TradingView exchange, only needed if the live price box says "symbol not found":
+#           SHOP | Shopify | NASDAQ
+# Bloomberg style codes are fine and are translated automatically, including overseas ones:
+#   "SHOP US", "2345 TT" (Taiwan), "6809 HK" (Hong Kong), "6723 JP" (Japan), "300394 CH" (China), "NAPA NO" (Norway).
+# Overseas prices are shown in local currency. Lines starting with # are ignored.
+# Only share tickers here, never position sizes or prices: this repository may be public.
+
+[Agentic Utilities]
+SHOP | Shopify
+META | Meta Platforms
+INOD | Innodata
+TWLO | Twilio
+BAND | Bandwidth
+RNG | RingCentral
+DOCU | DocuSign
+
+[Agentic Infrastructure]
+CSCO | Cisco
+ATEN | A10 Networks
+CIEN | Ciena
+HPE | Hewlett Packard Enterprise
+VRSN | VeriSign
+FSLY | Fastly
+EQIX | Equinix
+DLR | Digital Realty Trust
+VNET | VNET Group
+DOCN | DigitalOcean
+RXT | Rackspace
+
+[Agentic Cybersecurity]
+SAIL | SailPoint
+RBRK | Rubrik
+OKTA | Okta
+ZS | Zscaler
+NTSK | Netskope
+NET | Cloudflare
+AKAM | Akamai
+DDOG | Datadog
+PANW | Palo Alto Networks
+
+[Agentic Payments]
+V | Visa
+MA | Mastercard
+CRCL | Circle Internet Group
+PYPL | PayPal
+COIN | Coinbase Global
+
+[Agentic Orchestration Plane]
+ALAB US | Astera Labs
+ANET US | Arista Networks
+APH US | Amphenol Corp
+SILC US | Silicom
+5274 TT | ASPEED Technology
+CSCO US | Cisco Systems
+300394 CH | Suzhou TFC Optical Communication
+6723 JP | Renesas Electronics
+TEL US | TE Connectivity
+CRDO US | Credo Technology
+TXN US | Texas Instruments
+CDNS US | Cadence Design
+NAPA NO | Napatech
+EXTR US | Extreme Networks
+SNPS US | Synopsys
+MCHP US | Microchip Technology
+RMBS US | Rambus Inc
+2345 TT | Accton Technology
+4966 TT | Parade Technologies
+QCOM US | Qualcomm Inc
+NOK US | Nokia Corp
+6809 HK | Montage Technology
+AIP US | Arteris Inc
+3533 TT | Lotes Co
+6088 HK | FIT Hon Teng

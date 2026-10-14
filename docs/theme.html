@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theme · Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<main id="main"></main>
+<script src="common.js"></script>
+<script>
+const SLUG=new URLSearchParams(location.search).get('t')||'';
+header('Stock Screener','<a href="index.html">&larr; All themes</a> &nbsp;·&nbsp; ');
+const sortState={};let T=null;
+
+function groupRows(g){return rowsOf(g.items,{basket:g.name})}
+function barRow(r,val,txt,sub,kind,scale,mark){
+  const w=Math.max(2,Math.min(100,Math.abs(val)/scale*100));
+  return `<div class="mrow"><div class="mt"><b>${esc(r.sym)}</b><small>${esc(r.basket)}</small></div>
+    <div class="mbar"><i class="${kind}" style="width:${w}%"></i>${mark!=null?`<u style="left:${Math.min(100,mark/scale*100)}%"></u>`:''}</div>
+    <div class="mv ${kind==='u'?'up':kind==='d'?'dn':''}">${txt}${sub?`<small class="${cls(r.pct)}">${sub}</small>`:''}</div></div>`;
+}
+function summary(){
+  const cards=T.groups.map(g=>{
+    const s=stats(groupRows(g)),tot=s.adv+s.dec||1;
+    return `<a class="card" href="#${slug(g.name)}"><div class="nm">${esc(g.name)} <span class="mu" style="font-weight:400">(${s.n})</span></div>
+      <div class="big ${cls(s.day)}">${arrow(s.day)}${pc(s.day,2)}</div>
+      <div class="row"><span>1W</span><b class="${cls(s.w1)}">${pc(s.w1)}</b></div>
+      <div class="row"><span>1M</span><b class="${cls(s.m1)}">${pc(s.m1)}</b></div>
+      <div class="row"><span>YTD</span><b class="${cls(s.ytd)}">${pc(s.ytd)}</b></div>
+      <div class="row"><span>vs S&amp;P 1M / 3M</span><b><span class="${cls(s.rs1)}">${pts(s.rs1)}</span> / <span class="${cls(s.rs3)}">${pts(s.rs3)}</span></b></div>
+      <div class="row"><span>Above 50d / 200d</span><b>${s.a50}/${s.n50} · ${s.a200}/${s.n200}</b></div>
+      <div class="row"><span>Avg RSI · trend score</span><b><span class="${rsiCls(s.rsi)}">${s.rsi==null?'–':s.rsi.toFixed(0)}</span> · ${s.score==null?'–':s.score.toFixed(1)+'/6'}</b></div>
+      <div class="row"><span>Signals</span><b><span class="up">${s.bull} bullish</span> · <span class="dn">${s.bear} bearish</span></b></div>
+      <div class="bar" title="${s.adv} up, ${s.dec} down"><i style="width:${s.adv/tot*100}%;background:var(--up)"></i><i style="width:${s.dec/tot*100}%;background:var(--dn)"></i></div>
+      <div class="row"><span>${s.adv} up</span><span>${s.dec} down</span></div></a>`}).join('');
+  const seen=new Set();
+  const all=T.groups.flatMap(groupRows).filter(r=>!r.missing&&r.pct!=null&&!seen.has(r.k)&&seen.add(r.k));   // a stock in two baskets counts once
+  const byPct=all.slice().sort((a,b)=>b.pct-a.pct),best=byPct.slice(0,5),worst=byPct.slice(-5).reverse();
+  const sc=Math.max(1,...best.map(r=>Math.abs(r.pct)),...worst.map(r=>Math.abs(r.pct)));
+  const mv=l=>l.map(r=>barRow(r,r.pct,pc(r.pct,2),'',r.pct>=0?'u':'d',sc)).join('');
+  const vol=all.filter(r=>r.vol_x!=null&&r.vol_x>=1.8).sort((a,b)=>b.vol_x-a.vol_x).slice(0,6),vsc=Math.max(3,...vol.map(r=>r.vol_x));
+  const volH=vol.length?vol.map(r=>barRow(r,r.vol_x,r.vol_x.toFixed(1)+'×',pc(r.pct,1),'v',vsc,1)).join('')+'<div class="zonelab"><span>Bar = volume vs 20-day avg (line = 1×)</span><span>today may be partial</span></div>':'<div class="empty">No stock above 1.8× its 20-day average volume.</div>';
+  const sig=all.filter(r=>(r.signals||[]).some(s=>s.k!=='rsi70'&&s.k!=='rsi30')).sort((a,b)=>b.signals.length-a.signals.length).slice(0,10);
+  const sigH=sig.length?sig.map(r=>`<div style="padding:3px 0"><b>${esc(r.sym)}</b> <span class="mu" style="font-size:11px">${esc(r.basket)}</span><br>${sigChips(r)}</div>`).join(''):'<div class="empty">No trend, MACD, 52-week or volume signals today.</div>';
+  const hot=all.filter(r=>r.rsi!=null&&r.rsi>=70).sort((a,b)=>b.rsi-a.rsi).slice(0,5),cold=all.filter(r=>r.rsi!=null&&r.rsi<=30).sort((a,b)=>a.rsi-b.rsi).slice(0,5);
+  const rr=r=>`<div class="mrow"><div class="mt"><b>${esc(r.sym)}</b><small>${esc(r.basket)}</small></div><div>${rsiGauge(r.rsi)}</div><div class="mv ${rsiCls(r.rsi)}">${r.rsi.toFixed(0)}</div></div>`;
+  const rsiH=(hot.length?`<div class="sub">Overbought (RSI ≥ 70)</div>${hot.map(rr).join('')}`:'')+(cold.length?`<div class="sub">Oversold (RSI ≤ 30)</div>${cold.map(rr).join('')}`:'')||'<div class="empty">No stock with RSI above 70 or below 30.</div>';
+  return `<section id="overview"><h2>${esc(T.title)} · basket overview</h2>${T.description?`<div class="desc">${esc(T.description)}</div>`:''}<div class="cards">${cards}</div>
+   <div class="movers">
+    <div class="panel"><h3>Best today</h3>${mv(best)}</div>
+    <div class="panel"><h3>Worst today</h3>${mv(worst)}</div>
+    <div class="panel"><h3>Technical signals</h3>${sigH}</div>
+    <div class="panel"><h3>Unusual volume</h3>${volH}<h3 style="margin-top:12px">RSI 14 extremes</h3>${rsiH}</div>
+   </div>${errorsBlock()}</section>`;
+}
+const COLS=[
+ ['label','Stock',null,r=>(r.label||'').toLowerCase()],
+ ['pct','Day',r=>`<td class="${cls(r.pct)}">${arrow(r.pct)}${pc(r.pct,2)}</td>`],
+ ['w1','1W',r=>`<td class="${cls(r.w1)}">${pc(r.w1)}</td>`],
+ ['m1','1M',r=>`<td class="${cls(r.m1)}">${pc(r.m1)}</td>`],
+ ['ytd','YTD',r=>`<td class="${cls(r.ytd)}">${pc(r.ytd)}</td>`],
+ ['rs3','vs S&P 3M',r=>`<td class="${cls(r.rs3)} hide-sm">${pts(r.rs3)}</td>`,null,1],
+ ['rng','52w range',r=>{const rp=rangePos(r);return `<td class="hide-sm">${rp==null?'–':`<span class="rng" title="${fmt(r.lo52,2)} – ${fmt(r.hi52,2)}"><i style="left:calc(${(rp*100).toFixed(0)}% - 1px)"></i></span> <span class="mu">${(rp*100).toFixed(0)}%</span>`}</td>`},rangePos,1],
+ ['ma','Trend',r=>`<td class="hide-sm" style="text-align:left">${maPill(r)}</td>`,r=>(r.ma50!=null&&r.last>r.ma50?1:0)+(r.ma200!=null&&r.last>r.ma200?1:0),1],
+ ['rsi','RSI 14',r=>`<td class="hide-sm">${r.rsi==null?'–':`${rsiGauge(r.rsi)} <span class="${rsiCls(r.rsi)}" style="display:inline-block;min-width:22px">${r.rsi.toFixed(0)}</span>`}</td>`,null,1],
+ ['vol_x','Vol ×',r=>`<td class="hide-sm ${r.vol_x>=1.8?'up':''}">${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}</td>`,null,1],
+ ['score','Score',r=>`<td class="hide-sm">${scoreBar(r.score)}</td>`,null,1],
+];
+function basketHTML(g,i){
+  const st=sortState[g.name]||{k:null,dir:-1};
+  const rows=sortRows(groupRows(g),st,COLS);
+  const th=COLS.map(([k,l,,, sm])=>`<th class="${st.k===k?'on':''} ${sm?'hide-sm':''}" data-b="${i}" data-k="${k}">${l}${st.k===k?(st.dir>0?' ↑':' ↓'):''}</th>`).join('');
+  const body=rows.map((r,j)=>{
+    if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="11" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
+    const nws=(r.news||[]).map(n=>`<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.title)}</a>`).join('')||'<span class="mu">No recent headlines</span>';
+    const extra=`<div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.cur?' · '+esc(r.cur):''}</div>`;
+    return `<tr class="main" data-n="${i}-${j}"><td class="nm">${esc(r.label)}<small>${esc(r.sym)} · ${fmt(r.last,2)}</small>${(r.signals||[]).length?`<div>${sigChips(r,3)}</div>`:''}</td>
+      ${COLS.slice(1).map(c=>c[2](r)).join('')}<td class="${cls(r.m1)}">${spark(r.spark)}</td></tr>
+      <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="12">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
+  const s=stats(groupRows(g));
+  return `<section id="${slug(g.name)}"><h2>${esc(g.name)} · avg day <span class="${cls(s.day)}">${pc(s.day,2)}</span> · 1M <span class="${cls(s.m1)}">${pc(s.m1)}</span></h2>
+    <div class="scroll"><table><tr>${th}<th>45d</th></tr>${body}</table></div>
+    <div class="note">Click a column to sort, click a stock for its details and latest headlines. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months).</div></section>`;
+}
+function liveBlock(){
+  return `<section id="live"><h2>Live prices from TradingView (refreshes every time you reload this page)</h2>
+   <div class="tradingview-widget-container" id="tvq"></div>
+   <div class="note">TradingView's free widget: price and day change only, may be delayed up to 15 minutes. If a row says "symbol not found", add the exchange as a third column in the theme file (for example: SHOP | Shopify | NASDAQ).</div></section>`;
+}
+function mountLive(){
+  const host=document.getElementById('tvq');if(!host)return;
+  const sc=document.createElement('script');sc.type='text/javascript';sc.async=true;
+  sc.src='https://s3.tradingview.com/external-embedding/embed-widget-market-quotes.js';
+  sc.text=JSON.stringify({width:'100%',height:560,showSymbolLogo:true,isTransparent:true,locale:'en',
+    colorTheme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light',
+    symbolsGroups:T.groups.map(g=>({name:g.name,originalName:g.name,symbols:g.items.map(r=>({name:r.tv||r.sym,displayName:r.label}))}))});
+  host.appendChild(sc);
+}
+function briefText(){
+  const L=[];
+  L.push(`I run an equity fund. This is my "${T.title}" theme watchlist${T.description?' ('+T.description+')':''}. Using ONLY the data below (do not invent numbers or news), give me a technical brief:`);
+  L.push('1. Basket by basket: is momentum confirming or fading? Compare day / 1W / 1M / 3M / YTD, relative strength vs the S&P 500, breadth (how many above the 50- and 200-day averages) and the average trend score.');
+  L.push('2. Dispersion inside each basket: leaders and laggards, and names diverging from the rest of their basket.');
+  L.push('3. The technical signals listed (52-week highs/lows, 50d/200d crosses, golden/death crosses, MACD crosses, RSI extremes, volume surges): which look like real breakouts or breakdowns and which look like noise? Use volume and relative strength to judge.');
+  L.push('4. Which headlines matter for the setups, and what to verify before acting.');
+  L.push('5. A short list: best-looking long setups, names to avoid or trim, and 3-5 things to check on Bloomberg. Be concise, short bullets.');
+  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average volume. ATR = 14-day average true range as % of price.');
+  L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
+  T.groups.forEach(g=>{
+    const s=stats(groupRows(g));
+    L.push('','## '+g.name+` (avg day ${f2(s.day)}%, 1W ${f2(s.w1)}%, 1M ${f2(s.m1)}%, 3M ${f2(s.m3)}%, YTD ${f2(s.ytd)}%; above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}; avg trend score ${f2(s.score,1)})`);
+    groupRows(g).forEach(r=>{L.push(lineFor(r));(r.news||[]).slice(0,2).forEach(n=>L.push('   - '+n.title))});
+  });
+  return L.join('\n');
+}
+function drawBaskets(){
+  document.getElementById('baskets').innerHTML=T.groups.map(basketHTML).join('');
+  document.querySelectorAll('#baskets th[data-k]').forEach(t=>t.addEventListener('click',()=>{
+    const g=T.groups[+t.dataset.b],k=t.dataset.k,st=sortState[g.name]||{k:null,dir:-1};
+    sortState[g.name]={k,dir:st.k===k?-st.dir:(k==='label'?1:-1)};
+    const y=window.scrollY;drawBaskets();window.scrollTo(0,y);
+  }));
+  document.querySelectorAll('#baskets tr.main').forEach(t=>t.addEventListener('click',()=>{
+    const n=document.getElementById('nw-'+t.dataset.n);n.style.display=n.style.display==='none'?'table-row':'none'}));
+}
+load(()=>{
+  T=D.themes.find(t=>t.slug===SLUG);
+  if(!T){document.getElementById('main').innerHTML=`<section><h2>Theme not found</h2><p>Pick one: ${D.themes.map(t=>`<a class="more" href="theme.html?t=${t.slug}">${esc(t.title)}</a>`).join(' · ')}</p></section>`;return}
+  document.title=T.title+' · Stock Screener';
+  document.querySelector('header h1').textContent=T.title;
+  document.getElementById('main').innerHTML='<div id="top"></div><div id="liveHost"></div><div id="baskets" style="display:grid;gap:16px"></div>'+copyBlock('claude-brief',T.title+' brief with Claude');
+  document.getElementById('top').innerHTML=summary();
+  document.getElementById('liveHost').innerHTML=liveBlock();
+  mountLive();
+  document.getElementById('nav').innerHTML=[['overview','Overview'],['live','Live'],...T.groups.map(g=>[slug(g.name),g.name]),['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${esc(l)}</a>`).join('');
+  drawBaskets();
+  wireCopy(briefText);
+});
+</script>
+</body>
+</html>

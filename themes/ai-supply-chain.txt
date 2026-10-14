@@ -1,0 +1,98 @@
+# AI SUPPLY CHAIN theme: from chips to power. Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+@title AI Supply Chain
+@description Accelerators, chipmaking equipment, memory, foundry and packaging, networking and optics, servers, power and cooling, and the hyperscalers whose capex drives it all.
+@order 20
+
+[Accelerators & Custom Silicon]
+NVDA | Nvidia
+AMD | Advanced Micro Devices
+AVGO | Broadcom
+MRVL | Marvell Technology
+ARM | Arm Holdings
+ALAB | Astera Labs
+3661 TT | Alchip
+3443 TT | Global Unichip
+688256 CH | Cambricon
+
+[Semiconductor Equipment]
+ASML | ASML
+AMAT | Applied Materials
+LRCX | Lam Research
+KLAC | KLA
+TER | Teradyne
+8035 JP | Tokyo Electron
+6857 JP | Advantest
+6920 JP | Lasertec
+002371 CH | Naura Technology
+
+[Memory & Storage]
+MU | Micron
+000660 KS | SK Hynix
+005930 KS | Samsung Electronics
+WDC | Western Digital
+STX | Seagate
+SNDK | SanDisk
+PSTG | Pure Storage
+
+[Foundry & Packaging]
+TSM | TSMC (ADR)
+2330 TT | TSMC
+INTC | Intel
+GFS | GlobalFoundries
+3711 TT | ASE Technology
+AMKR | Amkor
+0981 HK | SMIC
+
+[Networking & Optics]
+ANET | Arista Networks
+CIEN | Ciena
+COHR | Coherent
+LITE | Lumentum
+CRDO | Credo Technology
+FN | Fabrinet
+300308 CH | Zhongji Innolight
+300502 CH | Eoptolink
+2345 TT | Accton
+
+[Servers & ODMs]
+DELL | Dell Technologies
+SMCI | Super Micro Computer
+HPE | Hewlett Packard Enterprise
+2317 TT | Hon Hai (Foxconn)
+2382 TT | Quanta Computer
+6669 TT | Wiwynn
+3231 TT | Wistron
+601138 CH | Foxconn Industrial Internet
+
+[Power & Cooling]
+VRT | Vertiv
+ETN | Eaton
+GEV | GE Vernova
+PWR | Quanta Services
+NVT | nVent Electric
+MOD | Modine
+2308 TT | Delta Electronics
+SU FP | Schneider Electric
+3017 TT | Asia Vital Components
+
+[Power Generation]
+CEG | Constellation Energy
+VST | Vistra
+TLN | Talen Energy
+NRG | NRG Energy
+CCJ | Cameco
+OKLO | Oklo
+BE | Bloom Energy
+
+[Hyperscalers & Neoclouds]
+MSFT | Microsoft
+AMZN | Amazon
+GOOGL | Alphabet
+META | Meta Platforms
+ORCL | Oracle
+CRWV | CoreWeave
+NBIS | Nebius
+
+# Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
+# Bloomberg style codes work ("2330 TT", "0700 HK", "8035 JP", "300308 CH", "000660 KS", "SU FP").
+# Only tickers here, never position sizes: this repository is public.

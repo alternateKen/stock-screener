@@ -1,0 +1,72 @@
+# ASIA LEADERS theme: the largest and most-watched names in Japan, Taiwan, Korea, Hong Kong / China H-shares and China A-shares.
+# Prices are in local currency. Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+@title Asia Leaders
+@description Market leaders in Japan, Taiwan, Korea, Hong Kong and mainland China, with an emphasis on the AI and tech supply chain.
+@order 40
+
+[Japan]
+7203 JP | Toyota Motor
+6758 JP | Sony Group
+8306 JP | Mitsubishi UFJ Financial
+6501 JP | Hitachi
+9984 JP | SoftBank Group
+8035 JP | Tokyo Electron
+6857 JP | Advantest
+6861 JP | Keyence
+9983 JP | Fast Retailing
+7974 JP | Nintendo
+8058 JP | Mitsubishi Corp
+4063 JP | Shin-Etsu Chemical
+7011 JP | Mitsubishi Heavy Industries
+
+[Taiwan]
+2330 TT | TSMC
+2317 TT | Hon Hai (Foxconn)
+2454 TT | MediaTek
+2308 TT | Delta Electronics
+2382 TT | Quanta Computer
+3711 TT | ASE Technology
+2345 TT | Accton
+6669 TT | Wiwynn
+2881 TT | Fubon Financial
+2891 TT | CTBC Financial
+
+[Korea]
+005930 KS | Samsung Electronics
+000660 KS | SK Hynix
+373220 KS | LG Energy Solution
+207940 KS | Samsung Biologics
+005380 KS | Hyundai Motor
+012450 KS | Hanwha Aerospace
+329180 KS | HD Hyundai Heavy
+105560 KS | KB Financial
+035420 KS | Naver
+034020 KS | Doosan Enerbility
+
+[Hong Kong & H-shares]
+0700 HK | Tencent
+9988 HK | Alibaba
+3690 HK | Meituan
+1810 HK | Xiaomi
+1211 HK | BYD
+0981 HK | SMIC
+3750 HK | CATL
+0939 HK | China Construction Bank
+1299 HK | AIA Group
+0388 HK | Hong Kong Exchanges
+0005 HK | HSBC Holdings
+
+[China A-shares]
+600519 CH | Kweichow Moutai
+300750 CH | CATL
+601318 CH | Ping An Insurance
+600036 CH | China Merchants Bank
+000333 CH | Midea
+300308 CH | Zhongji Innolight
+688256 CH | Cambricon
+002371 CH | Naura Technology
+601138 CH | Foxconn Industrial Internet
+300059 CH | East Money
+
+# Format:   [Basket name] starts a basket;  CODE | Company name  one stock per line (Bloomberg style codes).
+# Only tickers here, never position sizes: this repository is public.

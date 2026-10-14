@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<main id="main"></main>
+<script src="common.js"></script>
+<script>
+header('Stock Screener');
+function themeRows(t){const seen=new Set();return t.groups.flatMap(g=>rowsOf(g.items,{basket:g.name})).filter(r=>!seen.has(r.k)&&seen.add(r.k))}
+function themeCards(){
+  return D.themes.map(t=>{
+    const s=stats(themeRows(t)),tot=s.adv+s.dec||1;
+    const gs=t.groups.map(g=>({g:g.name,s:stats(rowsOf(g.items))})).filter(x=>x.s.m1!=null).sort((a,b)=>b.s.m1-a.s.m1);
+    const lead=gs[0],lag=gs[gs.length-1];
+    return `<a class="card" href="theme.html?t=${t.slug}"><div class="nm">${esc(t.title)} <span class="mu" style="font-weight:400">(${s.n} stocks, ${t.groups.length} baskets)</span></div>
+      <div class="big ${cls(s.day)}">${arrow(s.day)}${pc(s.day,2)}</div>
+      <div class="row"><span>1M · YTD</span><b><span class="${cls(s.m1)}">${pc(s.m1)}</span> · <span class="${cls(s.ytd)}">${pc(s.ytd)}</span></b></div>
+      <div class="row"><span>vs S&amp;P 3M</span><b class="${cls(s.rs3)}">${pts(s.rs3)}</b></div>
+      <div class="row"><span>Above 50d / 200d</span><b>${s.a50}/${s.n50} · ${s.a200}/${s.n200}</b></div>
+      <div class="row"><span>Avg trend score</span><b>${s.score==null?'–':s.score.toFixed(1)+'/6'}</b></div>
+      <div class="row"><span>Signals</span><b><span class="up">${s.bull}▲</span> <span class="dn">${s.bear}▼</span></b></div>
+      ${lead&&gs.length>1?`<div class="row"><span>Best 1M basket</span><b class="${cls(lead.s.m1)}">${esc(lead.g)} ${pc(lead.s.m1)}</b></div><div class="row"><span>Worst 1M basket</span><b class="${cls(lag.s.m1)}">${esc(lag.g)} ${pc(lag.s.m1)}</b></div>`:''}
+      <div class="bar" title="${s.adv} up, ${s.dec} down"><i style="width:${s.adv/tot*100}%;background:var(--up)"></i><i style="width:${s.dec/tot*100}%;background:var(--dn)"></i></div>
+      <div class="tag" style="margin-top:6px">${esc(t.description||'')}</div></a>`}).join('');
+}
+function universeRows(){
+  const by={};D.universe.forEach(u=>u.items.forEach(it=>{const s=D.stocks[it.k];if(s&&!by[it.k])by[it.k]={...s,...it,uni:u.name}}));
+  return Object.values(by);
+}
+function signalsPanel(){
+  const U=universeRows();
+  const cards=D.universe.map(u=>{const s=stats(rowsOf(u.items)),q=u.index_q;
+    return `<div class="panel"><h3>${esc(u.name)}${q?` <span class="${cls(q.pct)}" style="text-transform:none">${pc(q.pct,2)}</span>`:''}</h3>
+      <div class="row" style="display:flex;justify-content:space-between;font-size:12px"><span class="mu">Above 50d / 200d</span><b>${s.n50?Math.round(s.a50/s.n50*100):'–'}% · ${s.n200?Math.round(s.a200/s.n200*100):'–'}%</b></div>
+      <div class="row" style="display:flex;justify-content:space-between;font-size:12px"><span class="mu">Up / down today</span><b><span class="up">${s.adv}</span> / <span class="dn">${s.dec}</span></b></div>
+      <div class="row" style="display:flex;justify-content:space-between;font-size:12px"><span class="mu">Signals</span><b><span class="up">${s.bull}▲</span> <span class="dn">${s.bear}▼</span></b></div></div>`}).join('');
+  const count=k=>U.filter(r=>(r.signals||[]).some(s=>s.k===k)).length;
+  const chips=Object.entries(SIGNALS).map(([k,[l,d]])=>`<span class="chip ${d>0?'up':d<0?'dn':''}">${esc(l)}: <b>${count(k)}</b></span>`).join('');
+  const strength=r=>(r.signals||[]).reduce((p,s)=>p+s.d,0);
+  const bulls=U.filter(r=>strength(r)>=2).sort((a,b)=>strength(b)-strength(a)||(b.rs3||0)-(a.rs3||0)).slice(0,8);
+  const bears=U.filter(r=>strength(r)<=-2).sort((a,b)=>strength(a)-strength(b)||(a.rs3||0)-(b.rs3||0)).slice(0,8);
+  const li=r=>`<div style="padding:3px 0"><b>${esc(r.sym)}</b> <span class="mu" style="font-size:11px">${esc(r.label)} · ${esc(r.sector||r.uni)}</span><br>${sigChips(r,4)}</div>`;
+  return `<section id="signals"><h2>Broad screen · ${U.length} stocks</h2>
+    <div class="movers" style="margin-top:0">${cards}</div>
+    <div class="chips" style="margin-top:12px">${chips}</div>
+    <div class="movers">
+      <div class="panel"><h3>Strongest bullish clusters</h3>${bulls.map(li).join('')||'<div class="empty">No stock with two or more bullish signals.</div>'}</div>
+      <div class="panel"><h3>Strongest bearish clusters</h3>${bears.map(li).join('')||'<div class="empty">No stock with two or more bearish signals.</div>'}</div>
+    </div>
+    <p><a class="more" href="screen.html">Open the full screen with filters, sector breadth and its own Claude brief &rarr;</a></p></section>`;
+}
+function briefText(){
+  const L=[];
+  L.push('I run an equity fund. Below is a one-line-per-basket summary of all my theme watchlists plus breadth of the broad screen. Using ONLY this data (do not invent numbers or news):');
+  L.push('1. Where is leadership: which themes and baskets are strongest/weakest on 1M, 3M and relative strength vs the S&P 500, and is breadth confirming?');
+  L.push('2. Rotation: what is improving vs deteriorating (compare 1W vs 1M vs 3M), and what that says about risk appetite.');
+  L.push('3. Which theme pages I should open first today and why. Short bullets.');
+  L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
+  D.themes.forEach(t=>{
+    L.push('','## '+t.title);
+    t.groups.forEach(g=>{const s=stats(rowsOf(g.items));
+      L.push(`${g.name} (${s.n}): day ${f2(s.day)}%, 1W ${f2(s.w1)}%, 1M ${f2(s.m1)}%, 3M ${f2(s.m3)}%, YTD ${f2(s.ytd)}%, vs S&P 3M ${f2(s.rs3,1)} pts, above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}, avg RSI ${f2(s.rsi,0)}, avg trend score ${f2(s.score,1)}, signals ${s.bull} bullish / ${s.bear} bearish`)});
+  });
+  L.push('','## Broad screen breadth');
+  D.universe.forEach(u=>{const s=stats(rowsOf(u.items));L.push(`${u.name} (${s.n}): above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}, up ${s.adv} / down ${s.dec} today, avg 1M ${f2(s.m1)}%, signals ${s.bull} bullish / ${s.bear} bearish`)});
+  return L.join('\n');
+}
+load(()=>{
+  document.getElementById('main').innerHTML=`<section id="themes"><h2>Themes</h2><div class="cards">${themeCards()}</div>
+    <div class="note">Each theme is one file in the themes/ folder of the GitHub repository: edit it with the pencil icon and the site rebuilds itself. New tickers can go in themes/inbox.txt.</div></section>`
+    +signalsPanel()+copyBlock('claude-brief','Cross-theme brief with Claude')+`<section><h2>About</h2><div class="note">Trend score 0-6: one point each for price above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, and beating the S&amp;P 500 over 3 months. All data from Yahoo Finance (free, may be delayed); overseas prices in local currency. Not investment advice.</div>${errorsBlock()}</section>`;
+  document.getElementById('nav').innerHTML=[['themes','Themes'],...D.themes.map(t=>['theme.html?t='+t.slug,t.title]),['screen.html','Signals'],['claude-brief','Claude']]
+    .map(([i,l])=>`<a href="${i.includes('.html')?i:'#'+i}">${esc(l)}</a>`).join('');
+  wireCopy(briefText);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+name: Update stock screener
+
+on:
+  schedule:
+    # GitHub starts scheduled runs LATE (sometimes hours) and skips some, so a late run still builds: no clock check.
+    # Cron times are UTC (no daylight saving), written wide enough to cover both summer and winter time in New York:
+    #   10:15 and 11:15 UTC = pre-market (6:15am New York summer / winter), after every Asian market has closed
+    #   every 30 minutes from 13:05 to 21:35 UTC covers US market hours
+    - cron: "15 10,11 * * 1-5"
+    - cron: "5,35 13-21 * * 1-5"
+  workflow_dispatch: {}   # "Run workflow" button = refresh now
+  push:
+    branches: [main]
+    paths: ["docs/**", "scripts/**", "themes/**", "universe.txt", ".github/workflows/update.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the engine
+        run: python -m unittest discover -s tests -v
+      - name: Fetch fresh data and compute signals
+        timeout-minutes: 14
+        run: python scripts/screen.py docs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

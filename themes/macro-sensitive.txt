@@ -1,0 +1,86 @@
+# MACRO-SENSITIVE theme: the stocks that react most to rates, oil, metals, credit and defense budgets.
+# Pairs with the macro dashboard. Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+@title Macro-Sensitive
+@description Banks, housing, energy, miners, defense, rate-sensitives, transports and consumer credit: the equity read-through of the macro dashboard.
+@order 30
+
+[Money-Center Banks]
+JPM | JPMorgan Chase
+BAC | Bank of America
+WFC | Wells Fargo
+C | Citigroup
+GS | Goldman Sachs
+MS | Morgan Stanley
+
+[Regional Banks]
+KRE | SPDR Regional Banking ETF
+USB | U.S. Bancorp
+PNC | PNC Financial
+TFC | Truist Financial
+CFG | Citizens Financial
+ZION | Zions Bancorp
+
+[Housing]
+XHB | SPDR Homebuilders ETF
+DHI | D.R. Horton
+LEN | Lennar
+PHM | PulteGroup
+NVR | NVR
+TOL | Toll Brothers
+BLDR | Builders FirstSource
+
+[Oil & Gas]
+XLE | Energy Select Sector ETF
+XOM | Exxon Mobil
+CVX | Chevron
+OXY | Occidental Petroleum
+COP | ConocoPhillips
+HAL | Halliburton
+SLB | SLB
+
+[Metals & Miners]
+GDX | VanEck Gold Miners ETF
+NEM | Newmont
+AEM | Agnico Eagle
+WPM | Wheaton Precious Metals
+FCX | Freeport-McMoRan
+SCCO | Southern Copper
+NUE | Nucor
+AA | Alcoa
+
+[Defense]
+ITA | iShares Aerospace & Defense ETF
+LMT | Lockheed Martin
+RTX | RTX
+NOC | Northrop Grumman
+GD | General Dynamics
+LHX | L3Harris
+BA LN | BAE Systems
+RHM GY | Rheinmetall
+
+[Rate-Sensitive]
+TLT | iShares 20+ Year Treasury ETF
+IWM | iShares Russell 2000 ETF
+XLU | Utilities Select Sector ETF
+VNQ | Vanguard Real Estate ETF
+O | Realty Income
+PLD | Prologis
+
+[Transports]
+IYT | iShares Transportation ETF
+UNP | Union Pacific
+CSX | CSX
+FDX | FedEx
+UPS | United Parcel Service
+DAL | Delta Air Lines
+
+[Consumer Credit]
+AXP | American Express
+COF | Capital One
+SYF | Synchrony Financial
+ALLY | Ally Financial
+SOFI | SoFi Technologies
+
+# Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
+# Bloomberg style codes work ("BA LN" = BAE Systems in London, "RHM GY" = Rheinmetall in Germany).
+# Only tickers here, never position sizes: this repository is public.

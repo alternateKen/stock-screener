@@ -1,0 +1,217 @@
+# BROAD SCREEN UNIVERSE: every stock here is screened for technical signals on the "Signals" page.
+# The US indices load their current members from Wikipedia on every run (including GICS sector).
+# The Asian lists are curated large caps (copied from the macro dashboard's movers.txt); add or remove lines freely.
+#
+# [Name]                    starts a universe group
+# @index SYMBOL             Yahoo symbol of the index, shown for comparison
+# @wikipedia <address>      loads the members live from Wikipedia (US indices)
+# CODE | Company name       one stock per line (Bloomberg style codes work)
+[S&P 500]
+@index ^GSPC
+@wikipedia https://en.wikipedia.org/wiki/List_of_S%26P_500_companies
+
+[Nasdaq-100]
+@index ^NDX
+@wikipedia https://en.wikipedia.org/wiki/Nasdaq-100
+
+[China H-shares]
+@index ^HSCE
+0700 HK | Tencent
+9988 HK | Alibaba
+3690 HK | Meituan
+1810 HK | Xiaomi
+9618 HK | JD.com
+1024 HK | Kuaishou
+9999 HK | NetEase
+9888 HK | Baidu
+9961 HK | Trip.com
+1211 HK | BYD
+2015 HK | Li Auto
+9868 HK | XPeng
+0175 HK | Geely Auto
+0992 HK | Lenovo
+0981 HK | SMIC
+1347 HK | Hua Hong Semiconductor
+0285 HK | BYD Electronic
+2382 HK | Sunny Optical
+3750 HK | CATL
+0939 HK | China Construction Bank
+1398 HK | ICBC
+3988 HK | Bank of China
+1288 HK | Agricultural Bank of China
+3968 HK | China Merchants Bank
+2318 HK | Ping An Insurance
+2628 HK | China Life
+0857 HK | PetroChina
+0386 HK | Sinopec
+0883 HK | CNOOC
+1088 HK | China Shenhua
+0941 HK | China Mobile
+0728 HK | China Telecom
+0762 HK | China Unicom
+2899 HK | Zijin Mining
+2269 HK | WuXi Biologics
+1093 HK | CSPC Pharmaceutical
+6160 HK | BeiGene
+2020 HK | Anta Sports
+0688 HK | China Overseas Land
+1109 HK | China Resources Land
+
+[China A-shares]
+@index 000300.SS,399300.SZ
+600519 CH | Kweichow Moutai
+300750 CH | CATL
+601318 CH | Ping An Insurance
+600036 CH | China Merchants Bank
+601398 CH | ICBC
+601288 CH | Agricultural Bank of China
+601988 CH | Bank of China
+601939 CH | China Construction Bank
+000858 CH | Wuliangye
+000568 CH | Luzhou Laojiao
+600809 CH | Shanxi Fenjiu
+600900 CH | China Yangtze Power
+002594 CH | BYD
+000333 CH | Midea
+000651 CH | Gree Electric
+600276 CH | Hengrui Medicine
+300760 CH | Mindray
+000725 CH | BOE Technology
+002415 CH | Hikvision
+002230 CH | iFlytek
+002475 CH | Luxshare Precision
+601138 CH | Foxconn Industrial Internet
+300308 CH | Zhongji Innolight
+300502 CH | Eoptolink
+002371 CH | Naura Technology
+688981 CH | SMIC (STAR)
+688256 CH | Cambricon
+300124 CH | Inovance
+600030 CH | CITIC Securities
+300059 CH | East Money
+601899 CH | Zijin Mining
+601012 CH | LONGi Green Energy
+600887 CH | Yili
+600309 CH | Wanhua Chemical
+601888 CH | China Tourism Group
+600031 CH | Sany Heavy
+601225 CH | Shaanxi Coal
+601088 CH | China Shenhua
+600028 CH | Sinopec
+601857 CH | PetroChina
+
+[Taiwan]
+@index ^TWII
+2330 TT | TSMC
+2317 TT | Hon Hai (Foxconn)
+2454 TT | MediaTek
+2308 TT | Delta Electronics
+2382 TT | Quanta Computer
+3231 TT | Wistron
+6669 TT | Wiwynn
+2376 TT | Gigabyte
+2357 TT | Asustek
+2356 TT | Inventec
+4938 TT | Pegatron
+2301 TT | Lite-On
+2345 TT | Accton
+3711 TT | ASE Technology
+2303 TT | UMC
+3034 TT | Novatek
+2379 TT | Realtek
+3443 TT | Global Unichip
+3661 TT | Alchip
+3008 TT | Largan
+2327 TT | Yageo
+3017 TT | AVC (Asia Vital)
+3533 TT | Lotes
+5274 TT | ASPEED
+4966 TT | Parade Technologies
+2395 TT | Advantech
+2881 TT | Fubon Financial
+2882 TT | Cathay Financial
+2891 TT | CTBC Financial
+2886 TT | Mega Financial
+2884 TT | E.Sun Financial
+2412 TT | Chunghwa Telecom
+1301 TT | Formosa Plastics
+1303 TT | Nan Ya Plastics
+2002 TT | China Steel
+2603 TT | Evergreen Marine
+1216 TT | Uni-President
+
+[Korea]
+@index ^KS11
+005930 KS | Samsung Electronics
+000660 KS | SK Hynix
+373220 KS | LG Energy Solution
+207940 KS | Samsung Biologics
+005380 KS | Hyundai Motor
+000270 KS | Kia
+068270 KS | Celltrion
+105560 KS | KB Financial
+055550 KS | Shinhan Financial
+086790 KS | Hana Financial
+316140 KS | Woori Financial
+035420 KS | Naver
+035720 KS | Kakao
+005490 KS | POSCO Holdings
+012330 KS | Hyundai Mobis
+028260 KS | Samsung C&T
+051910 KS | LG Chem
+006400 KS | Samsung SDI
+009150 KS | Samsung Electro-Mechanics
+066570 KS | LG Electronics
+247540 KS | Ecopro BM
+003670 KS | POSCO Future M
+034020 KS | Doosan Enerbility
+012450 KS | Hanwha Aerospace
+042660 KS | Hanwha Ocean
+009540 KS | HD Korea Shipbuilding
+329180 KS | HD Hyundai Heavy
+064350 KS | Hyundai Rotem
+010130 KS | Korea Zinc
+017670 KS | SK Telecom
+030200 KS | KT Corp
+015760 KS | KEPCO
+032830 KS | Samsung Life
+000810 KS | Samsung Fire & Marine
+018260 KS | Samsung SDS
+011200 KS | HMM
+096770 KS | SK Innovation
+034730 KS | SK Inc
+000100 KS | Yuhan
+
+[Japan]
+@index ^N225
+7203 JP | Toyota Motor
+6758 JP | Sony Group
+8306 JP | Mitsubishi UFJ Financial
+8316 JP | Sumitomo Mitsui Financial
+8411 JP | Mizuho Financial
+6501 JP | Hitachi
+9984 JP | SoftBank Group
+8035 JP | Tokyo Electron
+6857 JP | Advantest
+6920 JP | Lasertec
+6146 JP | Disco
+6861 JP | Keyence
+9983 JP | Fast Retailing
+7974 JP | Nintendo
+8058 JP | Mitsubishi Corp
+8001 JP | Itochu
+8031 JP | Mitsui & Co
+4063 JP | Shin-Etsu Chemical
+7011 JP | Mitsubishi Heavy Industries
+7012 JP | Kawasaki Heavy Industries
+6098 JP | Recruit Holdings
+4502 JP | Takeda Pharmaceutical
+4568 JP | Daiichi Sankyo
+6367 JP | Daikin Industries
+6954 JP | Fanuc
+6981 JP | Murata Manufacturing
+6702 JP | Fujitsu
+6701 JP | NEC
+9432 JP | NTT
+9433 JP | KDDI
+7267 JP | Honda Motor

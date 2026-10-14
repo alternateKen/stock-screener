@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signals · Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<main id="main"></main>
+<script src="common.js"></script>
+<script>
+header('Signals: broad technical screen','<a href="index.html">&larr; All themes</a> &nbsp;·&nbsp; ');
+let ALL=[];const F={uni:'',sector:'',q:'',dir:0,sig:new Set(),only:true};const ST={k:'nsig',dir:-1};const MAXROWS=300;
+
+function buildRows(){
+  // a stock in several universes (e.g. S&P 500 and Nasdaq-100) is one row
+  const by={};
+  D.universe.forEach(u=>u.items.forEach(it=>{
+    const s=D.stocks[it.k];if(!s)return;
+    if(!by[it.k])by[it.k]={...s,...it,unis:[u.name],sector:it.sector&&it.sector!==u.name?it.sector:''};
+    else{by[it.k].unis.push(u.name);if(!by[it.k].sector&&it.sector&&it.sector!==u.name)by[it.k].sector=it.sector}
+  }));
+  ALL=Object.values(by).map(r=>({...r,sector:r.sector||r.unis[0],nsig:(r.signals||[]).length}));
+}
+function filtered(){
+  const q=F.q.trim().toLowerCase();
+  return ALL.filter(r=>(!F.uni||r.unis.includes(F.uni))&&(!F.sector||r.sector===F.sector)
+    &&(!q||r.sym.toLowerCase().includes(q)||(r.label||'').toLowerCase().includes(q))
+    &&(!F.only||(r.signals||[]).some(s=>(!F.sig.size||F.sig.has(s.k))&&(!F.dir||s.d===F.dir))));
+}
+function breadth(){
+  const groups={};ALL.forEach(r=>{if(!F.uni||r.unis.includes(F.uni))(groups[r.sector]=groups[r.sector]||[]).push(r)});
+  const rows=Object.entries(groups).map(([k,rs])=>{const s=stats(rs);return {k,s,h:rs.filter(r=>(r.signals||[]).some(x=>x.k==='hi52')).length,l:rs.filter(r=>(r.signals||[]).some(x=>x.k==='lo52')).length}})
+    .sort((a,b)=>(b.s.n200?b.s.a200/b.s.n200:0)-(a.s.n200?a.s.a200/a.s.n200:0));
+  const bar=(a,n)=>n?`<span class="cellbar"><i style="width:${a/n*100}%"></i></span>${Math.round(a/n*100)}%`:'–';
+  const tot=stats(ALL.filter(r=>!F.uni||r.unis.includes(F.uni)));
+  return `<section id="breadth"><h2>Breadth by sector / market${F.uni?' · '+esc(F.uni):''}</h2><div class="scroll"><table class="heat">
+    <tr><th>Sector / market</th><th>Names</th><th>Above 50d</th><th>Above 200d</th><th>Avg RSI</th><th>Avg 1M</th><th class="hide-sm">vs S&amp;P 3M</th><th class="hide-sm">Avg score</th><th>52w highs / lows</th><th class="hide-sm">Signals bull / bear</th></tr>
+    ${rows.map(({k,s,h,l})=>`<tr><td class="nm"><a class="more" href="#" data-sector="${esc(k)}">${esc(k)}</a></td><td>${s.n}</td><td>${bar(s.a50,s.n50)}</td><td>${bar(s.a200,s.n200)}</td>
+      <td class="${rsiCls(s.rsi)}">${s.rsi==null?'–':s.rsi.toFixed(0)}</td><td class="${cls(s.m1)}">${pc(s.m1)}</td><td class="${cls(s.rs3)} hide-sm">${pts(s.rs3)}</td>
+      <td class="hide-sm">${s.score==null?'–':s.score.toFixed(1)}</td><td><span class="up">${h}</span> / <span class="dn">${l}</span></td><td class="hide-sm"><span class="up">${s.bull}</span> / <span class="dn">${s.bear}</span></td></tr>`).join('')}
+    <tr><td class="nm"><b>All</b></td><td>${tot.n}</td><td>${bar(tot.a50,tot.n50)}</td><td>${bar(tot.a200,tot.n200)}</td><td>${tot.rsi==null?'–':tot.rsi.toFixed(0)}</td><td class="${cls(tot.m1)}">${pc(tot.m1)}</td><td class="hide-sm ${cls(tot.rs3)}">${pts(tot.rs3)}</td><td class="hide-sm">${tot.score==null?'–':tot.score.toFixed(1)}</td><td></td><td></td></tr>
+    </table></div><div class="note">Sorted by % of names above their 200-day average. US sectors are GICS sectors from Wikipedia; Asian groups are by market. Click a name to filter the list below.</div></section>`;
+}
+function filtersHTML(){
+  const unis=D.universe.map(u=>u.name),secs=[...new Set(ALL.filter(r=>!F.uni||r.unis.includes(F.uni)).map(r=>r.sector))].sort();
+  const counts={};ALL.filter(r=>(!F.uni||r.unis.includes(F.uni))&&(!F.sector||r.sector===F.sector)).forEach(r=>(r.signals||[]).forEach(s=>counts[s.k]=(counts[s.k]||0)+1));
+  return `<div class="filters">
+    <select id="fu"><option value="">All universes (${ALL.length})</option>${unis.map(u=>`<option ${F.uni===u?'selected':''}>${esc(u)}</option>`).join('')}</select>
+    <select id="fs"><option value="">All sectors / markets</option>${secs.map(s=>`<option ${F.sector===s?'selected':''}>${esc(s)}</option>`).join('')}</select>
+    <input id="fq" placeholder="Search ticker or name" value="${esc(F.q)}" size="18">
+    <span class="fchip ${F.dir===0?'on':''}" data-dir="0">All</span><span class="fchip ${F.dir===1?'on':''}" data-dir="1">Bullish</span><span class="fchip ${F.dir===-1?'on':''}" data-dir="-1">Bearish</span>
+    <label style="font-size:12px"><input type="checkbox" id="fo" ${F.only?'checked':''}> only stocks with signals</label></div>
+   <div class="filters">${Object.entries(SIGNALS).map(([k,[l,d]])=>`<span class="fchip ${F.sig.has(k)?'on':''}" data-sig="${k}">${esc(l)}<small>${counts[k]||0}</small></span>`).join('')}</div>`;
+}
+const COLS=[
+ ['label','Stock',null,r=>(r.label||'').toLowerCase()],
+ ['sector','Sector / market',r=>`<td class="hide-sm" style="text-align:left;white-space:normal">${esc(r.sector)}<small class="mu" style="display:block;font-size:10px">${esc(r.unis.join(', '))}</small></td>`,r=>r.sector,1],
+ ['pct','Day',r=>`<td class="${cls(r.pct)}">${pc(r.pct,1)}</td>`],
+ ['m1','1M',r=>`<td class="${cls(r.m1)}">${pc(r.m1)}</td>`],
+ ['rs3','vs S&P 3M',r=>`<td class="${cls(r.rs3)} hide-sm">${pts(r.rs3)}</td>`,null,1],
+ ['off_hi','From 52w high',r=>`<td class="hide-sm">${pc(r.off_hi)}</td>`,null,1],
+ ['rsi','RSI',r=>`<td class="${rsiCls(r.rsi)}">${r.rsi==null?'–':r.rsi.toFixed(0)}</td>`],
+ ['vol_x','Vol ×',r=>`<td class="hide-sm ${r.vol_x>=2?'up':''}">${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}</td>`,null,1],
+ ['score','Score',r=>`<td class="hide-sm">${scoreBar(r.score)}</td>`,null,1],
+ ['nsig','Signals',r=>`<td class="sigs">${sigChips(r)||'<span class="mu">–</span>'}</td>`],
+];
+function listHTML(){
+  const rows=sortRows(filtered(),ST,COLS),shown=rows.slice(0,MAXROWS);
+  const th=COLS.map(([k,l,,, sm])=>`<th class="${ST.k===k?'on':''} ${sm?'hide-sm':''}" data-k="${k}">${l}${ST.k===k?(ST.dir>0?' ↑':' ↓'):''}</th>`).join('');
+  return `<div class="note" style="margin:0 0 6px">${rows.length} stocks${rows.length>MAXROWS?`, showing the first ${MAXROWS} (narrow the filters or sort)`:''}</div>
+   <div class="scroll"><table><tr>${th}</tr>${shown.map(r=>`<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)} · ${fmt(r.last,2)}${r.cur&&r.cur!=='USD'?' '+esc(r.cur):''}</small></td>${COLS.slice(1).map(c=>c[2](r)).join('')}</tr>`).join('')}</table></div>`;
+}
+function draw(){
+  document.getElementById('flt').innerHTML=filtersHTML();
+  document.getElementById('lst').innerHTML=listHTML();
+  document.getElementById('fu').onchange=e=>{F.uni=e.target.value;F.sector='';document.getElementById('br').innerHTML=breadth();wireBreadth();draw()};
+  document.getElementById('fs').onchange=e=>{F.sector=e.target.value;draw()};
+  const fq=document.getElementById('fq');fq.oninput=e=>{F.q=e.target.value;document.getElementById('lst').innerHTML=listHTML();wireSort()};
+  document.getElementById('fo').onchange=e=>{F.only=e.target.checked;draw()};
+  document.querySelectorAll('[data-dir]').forEach(c=>c.onclick=()=>{F.dir=+c.dataset.dir;draw()});
+  document.querySelectorAll('[data-sig]').forEach(c=>c.onclick=()=>{const k=c.dataset.sig;F.sig.has(k)?F.sig.delete(k):F.sig.add(k);if(F.sig.size)F.only=true;draw()});
+  wireSort();
+}
+function wireSort(){
+  document.querySelectorAll('#lst th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;ST.dir=ST.k===k?-ST.dir:(k==='label'||k==='sector'?1:-1);ST.k=k;document.getElementById('lst').innerHTML=listHTML();wireSort()});
+}
+function wireBreadth(){
+  document.querySelectorAll('[data-sector]').forEach(a=>a.onclick=e=>{e.preventDefault();F.sector=a.dataset.sector;draw();document.getElementById('list').scrollIntoView()});
+}
+function briefText(){
+  const rows=sortRows(filtered(),{k:'nsig',dir:-1},COLS).slice(0,120);
+  const L=[];
+  L.push('I run an equity fund. Below is a technical screen of '+(F.uni||'the S&P 500, Nasdaq-100 and Asian large caps')+(F.sector?' ('+F.sector+')':'')+'. Using ONLY the data below (do not invent numbers or news), give me a brief:');
+  L.push('1. Breadth: what do the sector / market breadth numbers say about the tape (risk-on/off, rotation, narrow vs broad leadership)?');
+  L.push('2. The strongest bullish setups (prefer new highs, 200d reclaims and golden crosses confirmed by volume and relative strength) and the clearest breakdowns.');
+  L.push('3. Clusters: several names in the same sector or supply chain flashing the same signal.');
+  L.push('4. What looks like noise or is likely to fail (low volume, against the trend, RSI already stretched).');
+  L.push('5. A shortlist of 5-10 names to look at more closely, and what to check on Bloomberg. Be concise, short bullets.');
+  L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average.');
+  L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
+  const groups={};ALL.forEach(r=>{if(!F.uni||r.unis.includes(F.uni))(groups[r.sector]=groups[r.sector]||[]).push(r)});
+  L.push('','## Breadth by sector / market');
+  Object.entries(groups).forEach(([k,rs])=>{const s=stats(rs);L.push(`${k}: ${s.n} names, above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}, avg RSI ${f2(s.rsi,0)}, avg 1M ${f2(s.m1)}%, avg vs S&P 3M ${f2(s.rs3,1)} pts, signals ${s.bull} bullish / ${s.bear} bearish`)});
+  L.push('',`## Stocks with signals (filter: ${F.sig.size?[...F.sig].map(k=>SIGNALS[k][0]).join(', '):'all signals'}${F.dir?F.dir>0?', bullish only':', bearish only':''}; top ${rows.length} by number of signals)`);
+  rows.forEach(r=>L.push(`[${r.sector}] `+lineFor(r)));
+  return L.join('\n');
+}
+load(()=>{
+  buildRows();
+  document.getElementById('main').innerHTML=`<div id="br"></div><section id="list"><h2>Screen</h2><div id="flt"></div><div id="lst"></div>
+    <div class="note">Signals: new 52-week closing high/low; price crossing the 50- or 200-day average in the last 3 sessions; golden/death cross (50d through 200d) in the last 5; MACD(12,26,9) crossing its signal line in the last 3; RSI 14 at or above 70 / at or below 30; volume at least 2× the 20-day average. Asian prices are in local currency.</div>${errorsBlock()}</section>`+copyBlock('claude-brief','Signals brief with Claude');
+  document.getElementById('br').innerHTML=breadth();wireBreadth();
+  document.getElementById('nav').innerHTML=[['breadth','Breadth'],['list','Screen'],['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${l}</a>`).join('');
+  draw();
+  wireCopy(briefText);
+});
+</script>
+</body>
+</html>

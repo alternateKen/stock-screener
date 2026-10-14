@@ -1,0 +1,13 @@
+# INBOX: paste any new tickers here, one per line, and save. They show up on the site straight away under "Inbox".
+# When you're ready, ask Claude to sort them into the right themes and baskets (or move them yourself).
+#
+# Any of these formats work:
+#   PLTR
+#   PLTR | Palantir
+#   7203 JP | Toyota
+#   0700 HK
+@title Inbox
+@description New tickers waiting to be sorted into a theme.
+@order 90
+
+[Unsorted]
