@@ -517,7 +517,7 @@ def yahoo_key(code):
         return base + (".SS" if base.startswith("6") else ".SZ")
     if cc == "HK":
         base = base.lstrip("0").zfill(4)
-    rev = {"TT": ".TW", "HK": ".HK", "JP": ".T", "JT": ".T", "KS": ".KS", "KQ": ".KQ", "KP": ".KS", "LN": ".L", "GY": ".DE", "GR": ".DE",
+    rev = {"TT": ".TW", "HK": ".HK", "JP": ".T", "JT": ".T", "KS": ".KS", "KQ": ".KQ", "KP": ".KS", "KT": ".KQ", "TB": ".BK", "LN": ".L", "GY": ".DE", "GR": ".DE",
            "FP": ".PA", "NA": ".AS", "SW": ".SW", "SE": ".SW", "NO": ".OL", "AU": ".AX", "CN": ".TO", "IM": ".MI", "IT": ".MI",
            "SM": ".MC", "SS": ".ST", "DC": ".CO", "FH": ".HE", "IN": ".NS", "IS": ".NS", "SP": ".SI"}
     return base + rev.get(cc, "")

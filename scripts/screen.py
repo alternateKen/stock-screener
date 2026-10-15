@@ -240,7 +240,8 @@ def yahoo_bars(symbol):
     return {"t": [r[0] for r in rows], "c": [r[1] for r in rows], "h": [r[2] for r in rows], "l": [r[3] for r in rows],
             "v": [r[4] or 0 for r in rows], "o": [r[5] if r[5] is not None else r[1] for r in rows],
             "last": meta.get("regularMarketPrice"), "time": tm,
-            "currency": meta.get("currency"), "exch": meta.get("exchangeName"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
+            "currency": meta.get("currency"), "exch": meta.get("exchangeName"),
+            "name": meta.get("longName") or meta.get("shortName"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
 
 
 def news(feed_sym, limit=3):
@@ -257,7 +258,8 @@ def news(feed_sym, limit=3):
 
 # ---------------- ticker codes ----------------
 # Bloomberg country suffix -> Yahoo suffixes to try, in order (Taiwan: main board .TW or OTC .TWO; Korea: KOSPI .KS or KOSDAQ .KQ)
-BBG_SUFFIX = {"TT": [".TW", ".TWO"], "KS": [".KS", ".KQ"], "JP": [".T"], "HK": [".HK"], "NO": [".OL"], "LN": [".L"],
+BBG_SUFFIX = {"TT": [".TW", ".TWO"], "KS": [".KS", ".KQ"], "KP": [".KS", ".KQ"], "KQ": [".KQ", ".KS"], "KT": [".KQ", ".KS"],
+              "JP": [".T"], "JT": [".T"], "HK": [".HK"], "TB": [".BK"], "NO": [".OL"], "LN": [".L"],
               "GR": [".DE"], "GY": [".DE"], "FP": [".PA"], "NA": [".AS"], "SW": [".SW"], "SE": [".SW"], "AU": [".AX"],
               "CN": [".TO"], "IM": [".MI"], "IT": [".MI"], "SM": [".MC"], "SS": [".ST"], "DC": [".CO"], "FH": [".HE"],
               "IN": [".NS"], "IS": [".NS"], "SP": [".SI"]}
@@ -266,7 +268,7 @@ US_SUFFIX = ("US", "UN", "UQ", "UW", "UA")
 TV_EXCH = {".TW": "TWSE", ".TWO": "TPEX", ".SZ": "SZSE", ".SS": "SSE", ".T": "TSE", ".HK": "HKEX", ".OL": "OSL",
            ".L": "LSE", ".DE": "XETR", ".PA": "EURONEXT", ".AS": "EURONEXT", ".SW": "SIX", ".KS": "KRX", ".KQ": "KRX",
            ".AX": "ASX", ".TO": "TSX", ".MI": "MIL", ".MC": "BME", ".ST": "OMXSTO", ".CO": "OMXCOP",
-           ".HE": "OMXHEX", ".NS": "NSE", ".SI": "SGX"}
+           ".HE": "OMXHEX", ".NS": "NSE", ".SI": "SGX", ".BK": "SET"}
 
 
 def yahoo_candidates(code):
@@ -656,7 +658,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
             missing += 1
             errors.append(f"{k}: {e}")
             continue
-        r["ysym"], r["cur"], r["exch"] = b["ysym"], b.get("currency"), b.get("exch")
+        r["ysym"], r["cur"], r["exch"], r["name"] = b["ysym"], b.get("currency"), b.get("exch"), b.get("name")
         charts[k] = chart_payload(b)
         if k in hl:
             r["news"] = hl[k]
@@ -683,11 +685,17 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
         print("Fewer than half the stocks could be fetched; keeping the previously published data.", file=sys.stderr)
         sys.exit(1)
 
+    named = {}
+
     def items(g, with_sector=False):
         out = []
         for it in g["items"]:
             st = stocks.get(it["k"], {})
-            row = {"k": it["k"], "sym": it["sym"], "label": it["label"],
+            label = it["label"]
+            if label == it["sym"] and st.get("name"):   # no name in the theme file: use the company name from Yahoo
+                label = st["name"]
+                named[it["sym"]] = label
+            row = {"k": it["k"], "sym": it["sym"], "label": label,
                    "tv": st.get("tvs") or tv_symbol(it["cands"][0], it["exch"])}
             if with_sector:
                 row["sector"] = it.get("sector") or g["name"]
@@ -724,6 +732,8 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
           f"{len(stocks)} stocks with data, {missing} without, {nsig} signals")
     for e in errors:
         print("WARN", e)
+    if named:   # tickers added without a company name: shown here so they can be named in the theme file if wanted
+        print(f"named from Yahoo ({len(named)}): " + "; ".join(f"{k} = {v}" for k, v in sorted(named.items())))
     return data
 
 

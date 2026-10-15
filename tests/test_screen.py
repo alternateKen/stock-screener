@@ -90,6 +90,12 @@ class Codes(unittest.TestCase):
         self.assertEqual(screen.yahoo_candidates("BA/ LN")[0], ["BA.L"])
         self.assertEqual(screen.yahoo_candidates("RHM GY")[0], ["RHM.DE"])
         self.assertEqual(screen.yahoo_candidates("SU FP")[0], ["SU.PA"])
+        self.assertEqual(screen.yahoo_candidates("7751 JT")[0], ["7751.T"])
+        self.assertEqual(screen.yahoo_candidates("255A JT")[0], ["255A.T"])
+        self.assertEqual(screen.yahoo_candidates("278470 KP")[0], ["278470.KS", "278470.KQ"])
+        self.assertEqual(screen.yahoo_candidates("084370 KQ")[0], ["084370.KQ", "084370.KS"])
+        self.assertEqual(screen.yahoo_candidates("PTTGC TB")[0], ["PTTGC.BK"])
+        self.assertEqual(screen.yahoo_candidates("241 HK")[0], ["0241.HK"])
 
     def test_tv(self):
         self.assertEqual(screen.tv_symbol("0700.HK"), "HKEX:700")
