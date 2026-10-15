@@ -66,14 +66,63 @@ Try installing Python (step 3).
 
 The check only *reads* a few numbers (S&P 500, Nvidia, TSMC, the Nasdaq-100 member list) and shows them on your screen. It sends nothing anywhere.
 
-## Step 6: The daily sync (Claude builds this after the check passes)
+## Step 6: Give the sync a permanent home (3 minutes)
 
-Once the check is all `[OK]`, Claude will:
+1. Download the repository ZIP again (green **Code** button, then **Download ZIP**), because it now contains the sync files.
+2. Open **File Explorer** and go to your user folder (`C:\Users\<your name>`). Create a folder named exactly **`bbg_sync`**.
+3. From the ZIP's `bloomberg` folder, copy **everything** into `bbg_sync`. That includes `bbg_sync.py`, the two `..._tickers.csv` lists and all the `.bat` files.
 
-1. Write the sync script. It asks Bloomberg for everything in a few bulk requests and skips the day quietly if you're not logged in.
-2. Walk you through **installing Git** (git-scm.com, accept every default) and creating a **GitHub access key** that can only write to your two repositories.
-3. Set up **Windows Task Scheduler** to run it every weekday morning, after the time you usually log in.
+From now on, everything happens in `C:\Users\<your name>\bbg_sync`.
+
+## Step 7: Create a GitHub key that can only update your two repositories (5 minutes)
+
+The sync needs a key to upload to GitHub. This key can **only** change the files in `macro-updates` and `stock-screener`, nothing else in your account.
+
+1. In Chrome, go to **github.com → your picture (top right) → Settings → Developer settings** (bottom of the left menu) **→ Personal access tokens → Fine-grained tokens → Generate new token**.
+2. **Token name:** `Bloomberg sync`. **Expiration:** the longest offered (put a reminder in your calendar to renew it).
+3. **Repository access:** choose **Only select repositories** and pick **macro-updates** and **stock-screener**.
+4. **Permissions → Repository permissions → Contents:** choose **Read and write**. Leave everything else as it is.
+5. Press **Generate token** and **copy** the long code that starts with `github_pat_`.
+6. Open **Notepad**, paste the code, then **File → Save as**:
+   - Go to the `bbg_sync` folder.
+   - Set **Save as type** to **All files**.
+   - Set **File name** to **`token.txt`**.
+   - Press Save.
+
+Treat this key like a password: **never paste it into a chat (including Claude), an email or a GitHub file.** It stays in `token.txt` on this PC only.
+
+## Step 8: Test run, which uploads nothing (2 minutes)
+
+1. Make sure you're logged in to Bloomberg.
+2. In `bbg_sync`, double-click **`run_test.bat`**.
+3. It fetches everything once and saves the files in a folder on your Desktop called **`bloomberg_test_output`**. It does **not** upload anything.
+4. Copy everything in the black window (**Ctrl+A**, then **Enter**) and send it to Claude.
+   Lines starting with `[..] check against ...` ask you to compare one number with the Bloomberg screen (ECO or ANR). Mention whether they match.
+
+Claude fixes anything Bloomberg named differently, and you download the updated file. Then:
+
+## Step 9: Switch it on (2 minutes)
+
+1. Double-click **`run_now.bat`** once. It fetches and **uploads** straight away, so you can see the dashboards update within a few minutes.
+2. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
+   - **Outside weekdays 07:00–21:00** (this PC's clock) it does nothing.
+   - **At 08:30, 16:30 and 20:00** a "slot" becomes due. It runs **the first time you're logged in to Bloomberg after that time**.
+   - **If Bloomberg is logged out**, it stops quietly and tries again 15 minutes later. It never logs in for you.
+   - Every slot updates Fed pricing, credit indices and the economic calendar. The screener's analyst consensus updates once a day, and index weights once a week.
+3. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
+
+### What it fills in automatically
+| Macro dashboard (`macro-updates`) | Screener (`stock-screener`) |
+|---|---|
+| `bloomberg/wirp_us.csv`: Fed pricing by meeting, calculated from fed funds futures (the same method as WIRP and CME FedWatch, so numbers can differ slightly from the WIRP screen) | `data/bloomberg_consensus.json`: the **Street** column. Upside to the average analyst target, % of analysts rating Buy, and whether earnings estimates rose or fell over 4 weeks |
+| `bloomberg/credit.csv`: CDX / iTraxx levels and 3-month range (the basis and roll columns are not available by API, so they stay blank) | |
+| `bloomberg/eco.csv`: US releases for the next 2 weeks with survey and prior, plus last week's actuals | |
+| `weights/*.csv`: exact index weights for the top-movers cards | |
+
+**Still typed by hand for now:** `wirp_global.csv` (other central banks). Bloomberg's WIRP screen for other countries uses each country's OIS curve, and there is no simple API field for it. Ask Bloomberg (**HELP HELP**): *"Can WIRP meeting probabilities for other central banks be downloaded through the Excel/Desktop API, and with which tickers or fields?"* If they give you tickers, Claude can add them.
 
 ### Good to know
-- **Data limits:** Bloomberg Anywhere has daily and monthly limits on how much data the API can pull. The sync is designed to ask for the full history once, then only each new day.
-- **Your firm's rules:** if the main terminal is a work computer, check that installing Python is allowed there.
+- **Data limits:** each run uses a small part of Bloomberg Anywhere's API allowance. The heaviest step, consensus for about 800 stocks, runs once a day.
+- **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices). The macro files show the same kind of numbers you previously typed in by hand.
+- **Your firm's rules:** if this is a work computer, make sure running a scheduled script with Bloomberg data is allowed.
+- **If you change PC:** repeat steps 3, 4 and 6–9 on the new PC.

@@ -114,9 +114,10 @@ function briefText(){
   return L.join('\n');
 }
 load(()=>{
+  if(D.street_asof)COLS.splice(COLS.length-2,0,STREET_COL);
   buildRows();
   document.getElementById('main').innerHTML=`<div id="br"></div><section id="list"><h2>Screen</h2><div id="flt"></div><div id="lst"></div>
-    <div class="note">Signals: new 52-week closing high/low; price crossing the 50- or 200-day average in the last 3 sessions; golden/death cross (50d through 200d) in the last 5; MACD(12,26,9) crossing its signal line in the last 3; RSI 14 at or above 70 / at or below 30; volume at least 2× the 20-day average. TradingView = TradingView's own technical rating (second opinion). Asian prices are in local currency.</div>${errorsBlock()}</section>`+copyBlock('claude-brief','Signals brief with Claude');
+    <div class="note">Signals: new 52-week closing high/low; price crossing the 50- or 200-day average in the last 3 sessions; golden/death cross (50d through 200d) in the last 5; MACD(12,26,9) crossing its signal line in the last 3; RSI 14 at or above 70 / at or below 30; volume at least 2× the 20-day average. Street = Bloomberg consensus upside to target and % Buy ratings (hover for detail). TradingView = TradingView's own technical rating (second opinion). Asian prices are in local currency.</div>${errorsBlock()}</section>`+copyBlock('claude-brief','Signals brief with Claude');
   document.getElementById('br').innerHTML=breadth();wireBreadth();
   document.getElementById('nav').innerHTML=[['breadth','Breadth'],['list','Screen'],['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${l}</a>`).join('');
   draw();

@@ -148,6 +148,18 @@ class MemberSources(unittest.TestCase):
         self.assertEqual(u["groups"][0]["items"][0]["sector"], "Energy")   # borrowed from the S&P 500 group
 
 
+class Consensus(unittest.TestCase):
+    def test_merge(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "c.json")
+            with open(p, "w") as fh:
+                json.dump({"asof": "2026-10-15T08:30+08:00", "stocks": {"NVDA": {"up": 12.5, "buy": 90, "n": 60, "rt": 4.7, "rev4w": 3.1}}}, fh)
+            stocks, errors = {"NVDA": {}, "AAPL": {}}, []
+            self.assertEqual(screen.load_consensus(stocks, errors, p), "2026-10-15T08:30+08:00")
+            self.assertEqual(stocks["NVDA"]["st"]["up"], 12.5)
+            self.assertNotIn("st", stocks["AAPL"])
+
+
 class RealFiles(unittest.TestCase):
     """Every theme and universe file in the repository parses, and every line becomes a ticker."""
     def test_files_parse(self):

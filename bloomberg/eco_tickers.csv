@@ -1,0 +1,30 @@
+# US ECONOMIC RELEASES for the macro dashboard's calendar. One row per release.
+# To add one: on Bloomberg open ECO <GO>, click the release, and copy its ticker (it ends in "Index").
+event,ticker
+Change in Nonfarm Payrolls,NFP TCH Index
+Unemployment Rate,USURTOT Index
+Average Hourly Earnings MoM,AHE MOM% Index
+CPI MoM,CPI CHNG Index
+Core CPI MoM,CPUPXCHG Index
+CPI YoY,CPI YOY Index
+Core CPI YoY,CPI XYOY Index
+Core PCE Price Index MoM,PCE CMOM Index
+Core PCE Price Index YoY,PCE CYOY Index
+PPI Final Demand MoM,FDIDFDMO Index
+Retail Sales Advance MoM,RSTAMOM Index
+GDP Annualized QoQ,GDP CQOQ Index
+Initial Jobless Claims,INJCJC Index
+Continuing Claims,INJCSP Index
+ISM Manufacturing,NAPMPMI Index
+ISM Services Index,NAPMNMI Index
+U. of Mich. Sentiment,CONSSENT Index
+Conf. Board Consumer Confidence,CONCCONF Index
+Industrial Production MoM,IP CHNG Index
+Housing Starts,NHSPSTOT Index
+Existing Home Sales,ETSLTOTL Index
+New Home Sales,NHSLTOT Index
+JOLTS Job Openings,JOLTTOTL Index
+ADP Employment Change,ADP CHNG Index
+Durable Goods Orders,DGNOCHNG Index
+Trade Balance,USTBTOT Index
+FOMC Rate Decision (Upper Bound),FDTR Index

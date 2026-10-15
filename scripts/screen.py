@@ -564,6 +564,27 @@ def borrow_sectors(universe):
                 it["sector"] = known[it["cands"][0]]
 
 
+# ---------------- Bloomberg consensus (written by bloomberg/bbg_sync.py on the Bloomberg PC) ----------------
+def load_consensus(stocks, errors, path=None):
+    """Merge data/bloomberg_consensus.json (derived numbers only) into the stocks as r["st"]. Returns its as-of time or None."""
+    path = path or os.path.join(ROOT, "data", "bloomberg_consensus.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            c = json.load(f)
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"Bloomberg consensus file unreadable: {e}")
+        return None
+    n = 0
+    for k, rec in (c.get("stocks") or {}).items():
+        if k in stocks:
+            stocks[k]["st"] = rec
+            n += 1
+    print(f"Bloomberg consensus for {n} stocks (as of {c.get('asof')})")
+    return c.get("asof")
+
+
 # ---------------- build ----------------
 def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
@@ -641,6 +662,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
             r["news"] = hl[k]
         stocks[k] = r
     print(f"fetched {len(stocks)}/{len(jobs)} stocks in {time.time() - t0:.0f}s")
+    street = load_consensus(stocks, errors)
     # TradingView's technical rating, as a second opinion next to our own indicators
     overrides = {it["k"]: it["exch"] for coll in (themes, [universe]) for t in coll for g in t["groups"] for it in g["items"] if it["exch"]}
     for k, r in stocks.items():
@@ -682,6 +704,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
                                   if g["index"] and idx.get(tuple(g["index"])) else None)}
                      for g in universe["groups"] if g["items"]],
         "stocks": stocks,
+        "street_asof": street,
         "errors": errors,
     }
     os.makedirs(out_dir, exist_ok=True)

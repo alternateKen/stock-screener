@@ -35,6 +35,13 @@ function tvCell(r){
   const k=r.tvr>0.1?'up':r.tvr<-0.1?'dn':'mu';
   return `<span class="${k}" title="TradingView rating ${r.tvr.toFixed(2)} · moving averages ${f2(r.tv_ma)} · oscillators ${f2(r.tv_osc)}">${esc(r.tv_label)}</span>`;
 }
+// Bloomberg consensus (derived numbers from bloomberg/bbg_sync.py): upside to target, % Buy ratings, 4-week EPS revision
+function stCell(r){
+  const s=r.st;if(!s||s.up==null&&s.buy==null)return '<span class="mu">–</span>';
+  const t=`Consensus target upside ${s.up==null?'n/a':pc(s.up)} · ${s.buy==null?'n/a':s.buy+'%'} of ${s.n||'?'} analysts rate Buy · rating ${s.rt==null?'n/a':s.rt.toFixed(1)+'/5'} · next-12-month EPS estimate ${s.rev4w==null?'n/a':pc(s.rev4w)} over 4 weeks`;
+  return `<span title="${esc(t)}"><span class="${cls(s.up)}">${s.up==null?'–':pc(s.up,0)}</span>${s.buy==null?'':` <span class="mu">${s.buy}%B</span>`}${s.rev4w==null?'':` <span class="${cls(s.rev4w)}" style="font-size:11px">${s.rev4w>0?'▲':s.rev4w<0?'▼':''}</span>`}</span>`;
+}
+const STREET_COL=['stup','Street',r=>`<td class="hide-sm">${stCell(r)}</td>`,r=>r.st?r.st.up:null,1];
 const chartUrl=k=>'chart.html?k='+encodeURIComponent(k);
 // the stock's name links to its chart page (stopPropagation keeps a table row's click-to-expand working)
 const chartLink=(r,txt)=>`<a class="stk" href="${chartUrl(r.k)}" onclick="event.stopPropagation()" title="Open chart">${txt}</a>`;
@@ -57,7 +64,7 @@ function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];ret
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>
@@ -79,7 +86,7 @@ function wireCopy(textFn){
 }
 function freshness(){
   const g=new Date(D.generated);
-  return `Data generated ${D.generated} (${g.toUTCString()}).${D.spx&&D.spx.intraday?' Built while the US market was OPEN: today\'s bar, volume and any signal from it are provisional.':''}`;
+  return `Data generated ${D.generated} (${g.toUTCString()}).${D.street_asof?` Bloomberg consensus as of ${D.street_asof}.`:''}${D.spx&&D.spx.intraday?' Built while the US market was OPEN: today\'s bar, volume and any signal from it are provisional.':''}`;
 }
 function errorsBlock(){
   if(!D.errors||!D.errors.length)return '';

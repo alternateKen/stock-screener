@@ -11,7 +11,7 @@ on:
   workflow_dispatch: {}   # "Run workflow" button = refresh now
   push:
     branches: [main]
-    paths: ["docs/**", "scripts/**", "themes/**", "universe.txt", ".github/workflows/update.yml"]
+    paths: ["docs/**", "scripts/**", "themes/**", "data/**", "universe.txt", ".github/workflows/update.yml"]
 
 permissions:
   contents: read
