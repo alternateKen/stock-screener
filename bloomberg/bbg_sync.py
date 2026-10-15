@@ -285,7 +285,8 @@ def fed_pricing(bbg, gh):
 
 
 def fomc_dates(bbg, gh):
-    """FOMC decision dates: Bloomberg's release calendar for FDTR Index, else the dates already in wirp_us.csv."""
+    """FOMC decision dates: Bloomberg's release calendar for FDTR Index (if it answers), plus fomc_dates.csv
+    (the Fed's published schedule, editable), plus the dates already in wirp_us.csv."""
     out = set()
     try:
         d, _ = bbg.ref(["FDTR Index"], ["ECO_FUTURE_RELEASE_DATE_LIST"],
@@ -299,13 +300,20 @@ def fomc_dates(bbg, gh):
                     break
     except Exception as e:  # noqa: BLE001
         log(f"FOMC calendar from Bloomberg failed: {e}")
-    if not out and gh:
+    src = "Bloomberg" if out else ""
+    try:
+        out |= {as_date(r["meeting"]) for r in read_config("fomc_dates.csv")} - {None}
+        src = src or "fomc_dates.csv"
+    except Exception as e:  # noqa: BLE001
+        log(f"fomc_dates.csv unreadable: {e}")
+    if gh:
         try:
             txt = gh.read(MACRO_REPO, "bloomberg/wirp_us.csv")
-            out = {as_date(m) for m in re.findall(r"^(\d{4}-\d{2}-\d{2}),", txt, re.M)} - {None}
-            say("  [..]  FOMC dates taken from the current wirp_us.csv (Bloomberg's calendar field did not answer)")
+            out |= {as_date(m) for m in re.findall(r"^(\d{4}-\d{2}-\d{2}),", txt, re.M)} - {None}
         except Exception:  # noqa: BLE001
             pass
+    if src != "Bloomberg":
+        say(f"  [..]  FOMC dates from {src or 'wirp_us.csv'} (Bloomberg's calendar field did not answer; add new dates to fomc_dates.csv when the Fed publishes them)")
     return out
 
 
@@ -317,14 +325,21 @@ def read_config(name):
 def credit(bbg):
     """CDX / iTraxx levels with 3-month context -> macro-updates bloomberg/credit.csv (tickers in credit_tickers.csv)."""
     cfg = read_config("credit_tickers.csv")
-    h, errs = bbg.hist([c["ticker"] for c in cfg], ["PX_LAST"], date.today() - timedelta(days=100))
+    cands = {c["index"]: [t.strip() for t in c["ticker"].split("|") if t.strip()] for c in cfg}
+    h, errs = bbg.hist([t for ts in cands.values() for t in ts], ["PX_LAST"], date.today() - timedelta(days=100))
     rows, bad = [], []
     for c in cfg:
-        pts = [num(v.get("PX_LAST")) for _, v in h.get(c["ticker"], [])]
-        pts = [p for p in pts if p is not None]
-        if len(pts) < 2:
-            bad.append(f"{c['index']} ({c['ticker']}): {errs.get(c['ticker'], 'no data')}")
+        pts, used = [], None
+        for t in cands[c["index"]]:
+            pts = [p for p in (num(v.get("PX_LAST")) for _, v in h.get(t, [])) if p is not None]
+            if len(pts) >= 2:
+                used = t
+                break
+        if not used:
+            bad.append(f"{c['index']} (tried {' / '.join(cands[c['index']])})")
             continue
+        if len(cands[c["index"]]) > 1:
+            say(f"  [..]    {c['index']}: using {used}")
         q = pts[-63:]
         lvl, avg_ = pts[-1], sum(q) / len(q)
         rows.append([c["group"], c["index"], f"{lvl:.2f}", f"{lvl - pts[-2]:.2f}", "", "", f"{min(q):.1f}", f"{max(q):.1f}",
@@ -340,7 +355,7 @@ def credit(bbg):
     return {"bloomberg/credit.csv": csv_text(meta, ["group", "index", "level", "chg", "basis", "roll", "low", "high", "avg", "vs_avg", "chg_3m", "quote"], rows)}
 
 
-ECO_FIELDS = ["ECO_RELEASE_DT", "ECO_RELEASE_TIME", "BN_SURVEY_MEDIAN", "ACTUAL_RELEASE", "PX_LAST", "OBSERVATION_PERIOD"]
+ECO_FIELDS = ["ECO_RELEASE_DT", "ECO_RELEASE_TIME", "BN_SURVEY_MEDIAN", "PX_LAST", "OBSERVATION_PERIOD"]
 
 
 def eco(bbg, state):
@@ -620,14 +635,19 @@ def run(mode):
         today = date.today().isoformat()
         for name, fn in (("Fed pricing", lambda: fed_pricing(bbg, gh)), ("Credit", lambda: credit(bbg)), ("Economic calendar", lambda: eco(bbg, st))):
             try:
+                t0 = time.time()
                 macro.update(fn())
+                log(f"{name} took {time.time() - t0:.0f}s")
             except Exception as e:  # noqa: BLE001
                 say(f"  [!!]  {name} failed: {e}")
                 log(traceback.format_exc())
         last_w = st.get("weights_date", "2000-01-01")
         if mode != "auto" or (date.today() - date.fromisoformat(last_w)).days >= WEIGHTS_EVERY_DAYS:
             try:
+                say("  ...   index weights: 7 indices, about 1,100 member names (can take a minute)")
+                t0 = time.time()
                 wf, members = weights(bbg)
+                say(f"        (index weights took {time.time() - t0:.0f}s)")
                 macro.update(wf)
                 if wf and mode != "test":
                     st["weights_date"] = today
@@ -639,7 +659,10 @@ def run(mode):
                 if not members:   # consensus also covers the S&P 500 / Nasdaq-100 members
                     _, members = weights_members_only(bbg)
                 if gh:
+                    say("  ...   screener consensus: about 800 stocks plus 5 weeks of EPS estimates (can take 1-3 minutes)")
+                    t0 = time.time()
                     screener.update(consensus(bbg, gh, members))
+                    say(f"        (consensus took {time.time() - t0:.0f}s)")
                     if screener and mode != "test":
                         st["consensus_date"] = today
                 else:
