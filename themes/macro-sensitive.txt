@@ -47,6 +47,7 @@ FCX | Freeport-McMoRan
 SCCO | Southern Copper
 NUE | Nucor
 AA | Alcoa
+LYC AU | Lynas Rare Earths
 
 [Defense]
 ITA | iShares Aerospace & Defense ETF

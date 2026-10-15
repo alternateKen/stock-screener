@@ -1,0 +1,160 @@
+# KOREA theme (from the Korea Bloomberg watchlists). Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+# Codes are Bloomberg style (JT = Tokyo, KP = KOSPI, KQ = KOSDAQ, TT = Taiwan, HK = Hong Kong, CH = China A-shares).
+@title Korea
+@description Memory and the HBM equipment chain, PCBs, batteries, the power-grid and nuclear build-out, shipbuilding, defense, K-beauty and the financials.
+@order 42
+
+[Memory & Chips]
+005930 KP | Samsung Electronics
+000660 KP | SK hynix
+440110 KQ | FADU
+
+[Semiconductor Equipment & Test]
+042700 KP | HANMI Semiconductor
+084370 KQ | Eugene Technology
+095610 KQ | TES
+240810 KQ | Wonik IPS
+122640 KQ | YEST
+089970 KT | VM Inc
+281820 KP | KCTech
+089030 KQ | Techwing
+095340 KQ | ISC
+058470 KQ | LEENO Industrial
+348210 KQ | NEXTIN
+140860 KQ | Park Systems
+039440 KQ | STI
+161580 KQ | Philoptics
+131970 KQ | DOOSAN TESNA
+003160 KP | D.I Corp
+025560 KP | Mirae Corp
+
+[Semiconductor Materials & Parts]
+064760 KQ | Tokai Carbon Korea
+114810 KQ | Hansol IONES
+323280 KQ | Taesung
+086670 KQ | BMT
+388210 KQ | CMTX
+089010 KQ | Chemtronics
+078600 KQ | Daejoo Electronic Materials
+000150 KP | Doosan Corp
+
+[Electronics, PCBs & Components]
+066570 KP | LG Electronics
+009150 KP | Samsung Electro-Mechanics
+011070 KP | LG Innotek
+007660 KP | ISU Petasys
+222800 KQ | SIMMTECH
+007810 KP | Korea Circuit
+011790 KP | SKC
+138080 KQ | OE Solutions
+458870 KQ | SEERS
+
+[Batteries & Chemicals]
+373220 KP | LG Energy Solution
+006400 KP | Samsung SDI
+051910 KP | LG Chem
+020150 KP | Lotte Energy Materials
+010060 KP | OCI Holdings
+009830 KP | Hanwha Solutions
+096770 KP | SK Innovation
+082920 KQ | VITZROCELL
+
+[Power Grid, Nuclear & Energy]
+267260 KP | HD Hyundai Electric
+010120 KP | LS ELECTRIC
+298040 KP | Hyosung Heavy Industries
+001440 KP | Taihan Cable & Solution
+103590 KP | Iljin Electric
+034020 KP | Doosan Enerbility
+336260 KP | Doosan Fuel Cell
+052690 KP | KEPCO Engineering & Construction
+015760 KP | Korea Electric Power
+036460 KP | Korea Gas
+322000 KP | HD Hyundai Energy Solutions
+119850 KQ | GnCenergy
+105740 KQ | DK-Lok
+039610 KQ | HS Valve
+073010 KQ | KSP
+475150 KP | SK eternix
+
+[Shipbuilding & Marine]
+329180 KP | HD Hyundai Heavy Industries
+042660 KP | Hanwha Ocean
+010140 KP | Samsung Heavy Industries
+443060 KP | HD Hyundai Marine Solution
+082740 KP | Hanwha Engine
+267250 KP | HD Hyundai
+011200 KP | HMM
+
+[Defense & Aerospace]
+012450 KP | Hanwha Aerospace
+064350 KP | Hyundai Rotem
+189300 KQ | Intellian Technologies
+489790 KP | Hanwha Vision
+000880 KP | Hanwha Corp
+
+[Autos]
+005380 KP | Hyundai Motor
+000270 KP | Kia
+012330 KP | Hyundai Mobis
+204320 KP | HL Mando
+086280 KP | Hyundai Glovis
+
+[K-Beauty, Food & Consumer]
+278470 KP | APR
+090430 KP | Amorepacific
+051900 KP | LG H&H
+192820 KP | Cosmax
+161890 KP | Kolmar Korea
+241710 KQ | Cosmecca Korea
+483650 KP | d'Alba Global
+257720 KQ | SILICON2
+214150 KS | Classys
+214450 KQ | PharmaResearch
+003230 KP | Samyang Foods
+145990 KP | Samyang Corp
+021240 KP | COWAY
+192400 KP | Cuckoo Holdings
+282330 KP | BGF Retail
+139480 KP | E-MART
+005360 KP | Monami
+340570 KQ | T&L
+
+[Entertainment, Internet & Telecom]
+352820 KP | HYBE
+041510 KQ | SM Entertainment
+035420 KP | NAVER
+035720 KP | Kakao
+018260 KP | Samsung SDS
+017670 KP | SK Telecom
+030200 KP | KT
+CPNG UN | Coupang
+
+[Biotech]
+207940 KP | Samsung Biologics
+0126Z0 KP | Samsung Epis Holdings
+196170 KS | ALTEOGEN
+005690 KP | Pharmicell
+
+[Holding Companies]
+034730 KP | SK Inc
+402340 KP | SK Square
+003550 KP | LG Corp
+028260 KP | Samsung C&T
+
+[Financials]
+105560 KP | KB Financial Group
+055550 KP | Shinhan Financial Group
+086790 KP | Hana Financial Group
+139130 KP | iM Financial Group
+024110 KP | Industrial Bank of Korea
+032830 KP | Samsung Life Insurance
+016360 KP | Samsung Securities
+006800 KP | Mirae Asset Securities
+071050 KP | Korea Investment Holdings
+
+[Steel & Construction]
+005490 KP | POSCO Holdings
+000720 KP | Hyundai Engineering & Construction
+
+# Only tickers here, never position sizes: this repository is public.

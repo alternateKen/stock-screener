@@ -1,0 +1,161 @@
+# CHINA & HONG KONG theme (from the China Bloomberg watchlists). Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+# Codes are Bloomberg style (JT = Tokyo, KP = KOSPI, KQ = KOSDAQ, TT = Taiwan, HK = Hong Kong, CH = China A-shares).
+@title China & Hong Kong
+@description China's AI chips, models and hardware supply chain, robotics, internet platforms, EVs, new consumer brands, health care, metals and the Hong Kong financials.
+@order 44
+
+[AI Chips & Foundry]
+688256 CH | Cambricon Technologies
+688041 CH | Hygon Information Technology
+688825 CH | CXMT
+981 HK | Semiconductor Manufacturing International
+1347 HK | Hua Hong Grace Semiconductor
+3986 HK | GigaDevice Semiconductor (H)
+603986 CH | GigaDevice Semiconductor (A)
+6809 HK | Montage Technology
+603893 CH | Rockchip Electronics
+688521 CH | VeriSilicon
+2577 HK | InnoScience
+
+[Semiconductor Equipment]
+002371 CH | NAURA Technology Group
+688072 CH | Piotech
+688200 CH | Beijing Huafeng Test & Control
+300604 CH | Hangzhou Changchuan Technology
+522 HK | ASMPT
+
+[AI Optics, PCBs & Hardware]
+300308 CH | Zhongji Innolight (A)
+3308 HK | Zhongji Innolight (H)
+300502 CH | Eoptolink Technology
+688205 CH | Wuxi Taclink Optoelectronics Technology
+6869 HK | YOFC (Yangtze Optical Fibre) (H)
+601869 CH | YOFC (Yangtze Optical Fibre) (A)
+002384 CH | Suzhou Dongshan Precision Manufacturing
+300476 CH | Victory Giant Technology (A)
+2476 HK | Victory Giant Technology (H)
+600183 CH | Shengyi Technology
+1888 HK | Kingboard Laminates
+301377 CH | Guangdong Dtech Technology
+6088 HK | FIT Hon Teng
+300408 CH | Chaozhou Three-Circle (A)
+6951 HK | Chaozhou Three-Circle (H)
+992 HK | Lenovo Group
+601138 CH | Foxconn Industrial Internet
+
+[AI Models & Cloud]
+700 HK | Tencent
+9988 HK | Alibaba Group
+9888 HK | Baidu
+100 HK | MiniMax
+2513 HK | Z.ai (Zhipu)
+9698 HK | GDS
+3896 HK | Kingsoft Cloud
+
+[Robotics & Autonomy]
+9880 HK | Ubtech Robotics
+688836 CH | Yushu Technology (Unitree)
+2670 HK | Beijing Yunji Technology
+9660 HK | Horizon Robotics
+
+[Internet & Platforms]
+3690 HK | Meituan
+9618 HK | JD.com
+1024 HK | Kuaishou Technology
+9999 HK | NetEase
+9626 HK | Bilibili
+1698 HK | Tencent Music Entertainment Group
+9961 HK | Trip.com Group
+6618 HK | JD Health International
+241 HK | Alibaba Health Information Technology
+1060 HK | Damai Entertainment
+625 HK | SHEIN Global
+
+[EVs, Batteries & Machinery]
+1211 HK | BYD
+1810 HK | Xiaomi
+2015 HK | Li Auto
+9868 HK | XPeng
+175 HK | Geely Automobile
+3750 HK | Contemporary Amperex Technology (H)
+300750 CH | Contemporary Amperex Technology (A)
+2338 HK | Weichai Power (H)
+000338 CH | Weichai Power (A)
+631 HK | Sany Heavy Equipment International Holdings
+669 HK | Techtronic Industries
+000333 CH | Midea Group
+
+[Power & Energy Equipment]
+2208 HK | Goldwind Science&Technology
+002270 CH | Huaming Power Equipment
+1081 HK | Dajin Heavy Industry (H)
+002487 CH | Dajin Heavy Industry (A)
+002353 CH | Yantai Jereh Oilfield Services Group
+
+[New Consumer & Leisure]
+2097 HK | MIXUE Group
+9992 HK | Pop Mart International Group
+6181 HK | Laopu Gold
+1929 HK | Chow Tai Fook Jewellery Group
+2020 HK | ANTA Sports Products
+2331 HK | Li Ning
+6862 HK | Haidilao International Holding
+9987 HK | Yum China Holdings
+1579 HK | Yihai International Holding
+9980 HK | Eastroc Beverage (Group)
+1768 HK | Busy Ming Group
+600655 CH | Shanghai Yuyuan Tourist Mart (Group)
+1179 HK | H World Group
+27 HK | Galaxy Entertainment Group
+1928 HK | Sands China
+000858 CH | Wuliangye Yibin
+600519 CH | Kweichow Moutai
+
+[Health Care]
+6160 HK | BeOne Medicines
+1801 HK | Innovent Biologics
+3692 HK | Hansoh Pharmaceutical Group
+1177 HK | Sino Biopharmaceutical
+1530 HK | 3SBio
+2359 HK | WuXi AppTec
+2269 HK | WuXi Biologics (Cayman)
+9887 HK | Nanjing Leads Biolabs
+
+[Metals, Gold & Oil]
+2899 HK | Zijin Mining Group
+6693 HK | Chifeng Jilong Gold Mining Group
+358 HK | Jiangxi Copper
+1378 HK | China Hongqiao Group
+2600 HK | Chalco (Aluminum Corp of China)
+000807 CH | Yunnan Aluminium
+883 HK | CNOOC
+857 HK | PetroChina
+
+[Financials & Exchanges]
+1288 HK | Agricultural Bank of China
+939 HK | China Construction Bank
+1398 HK | Industrial and Commercial Bank of China
+600036 CH | China Merchants Bank
+1299 HK | AIA Group
+2318 HK | Ping An Insurance (H)
+601318 CH | Ping An Insurance (A)
+2378 HK | Prudential
+945 HK | Manulife Financial
+5 HK | HSBC Holdings
+388 HK | Hong Kong Exchanges and Clearing
+300059 CH | East Money Information
+2858 HK | Yixin Group
+
+[Hong Kong Property, Utilities & Telecom]
+1 HK | CK Hutchison
+1038 HK | CK Infrastructure
+2 HK | CLP
+16 HK | Sun Hung Kai Properties
+1109 HK | China Resources Land
+941 HK | China Mobile
+
+[ETFs]
+3081 HK | Value Gold ETF
+3174 HK | CSOP ETF (HK)
+
+# Only tickers here, never position sizes: this repository is public.

@@ -27,6 +27,20 @@ ORCL | Oracle
 AMD | Advanced Micro Devices
 CRM | Salesforce
 CSCO | Cisco
+INTC | Intel
+QCOM | Qualcomm
+TXN | Texas Instruments
+AMAT | Applied Materials
+ARM | Arm Holdings
+IBM | IBM
+ACN | Accenture
+INTU | Intuit
+NOW | ServiceNow
+PLTR | Palantir
+SAP UN | SAP (ADR)
+ASML NA | ASML (Amsterdam)
+TER | Teradyne
+COHU | Cohu
 
 [Communication Services]
 GOOGL | Alphabet
@@ -36,6 +50,7 @@ TMUS | T-Mobile US
 DIS | Walt Disney
 VZ | Verizon
 T | AT&T
+GOOG | Alphabet (class C)
 
 [Consumer Discretionary]
 AMZN | Amazon
@@ -46,6 +61,7 @@ BKNG | Booking Holdings
 TJX | TJX Companies
 LOW | Lowe's
 NKE | Nike
+TM UN | Toyota Motor (ADR)
 
 [Consumer Staples]
 WMT | Walmart
@@ -65,6 +81,8 @@ MRK | Merck
 ISRG | Intuitive Surgical
 TMO | Thermo Fisher
 ABT | Abbott Laboratories
+NVS | Novartis (ADR)
+NVO | Novo Nordisk (ADR)
 
 [Financials]
 BRK/B US | Berkshire Hathaway
@@ -75,6 +93,11 @@ BAC | Bank of America
 GS | Goldman Sachs
 MS | Morgan Stanley
 BLK | BlackRock
+AXP | American Express
+C | Citigroup
+WFC | Wells Fargo
+SCHW | Charles Schwab
+SPGI | S&P Global
 
 [Industrials]
 GE | GE Aerospace
@@ -94,6 +117,7 @@ EOG | EOG Resources
 SLB | SLB
 PSX | Phillips 66
 WMB | Williams Companies
+SHEL | Shell (ADR)
 
 [Utilities]
 NEE | NextEra Energy

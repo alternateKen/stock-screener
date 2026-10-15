@@ -1,0 +1,98 @@
+# JAPAN theme (from the Japan Bloomberg watchlists). Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+# Codes are Bloomberg style (JT = Tokyo, KP = KOSPI, KQ = KOSDAQ, TT = Taiwan, HK = Hong Kong, CH = China A-shares).
+@title Japan
+@description Japan's semiconductor equipment and materials champions, AI cables and components, industrials, consumer and games, and the megabanks.
+@order 41
+
+[Semiconductor Equipment]
+8035 JT | Tokyo Electron
+6857 JT | Advantest
+6920 JT | Lasertec
+6146 JT | Disco
+6525 JT | Kokusai Electric
+7735 JT | SCREEN Holdings
+7729 JT | Tokyo Seimitsu
+6315 JT | TOWA
+6590 JT | Shibaura Mechatronics
+6871 JT | Micronics Japan
+6855 JT | Japan Electronic Materials
+268A JT | Rigaku Holdings
+6951 JT | JEOL
+6961 JT | Enplas
+
+[Memory & Chips]
+285A JT | Kioxia Holdings
+6723 JT | Renesas Electronics
+
+[Semiconductor Materials]
+4063 JT | Shin-Etsu Chemical
+3436 JT | Sumco
+4004 JT | Resonac Holdings
+4047 JT | Kanto Denka Kogyo
+4091 JT | Nippon Sanso Holdings
+4092 JT | Nippon Chemical Industrial
+4078 JT | Sakai Chemical Industry
+4966 JT | C. Uyemura
+4971 JT | MEC
+7966 JT | LINTEC
+6890 JT | Ferrotec
+255A JT | Gltechno Holdings
+7826 JT | Furuya Metal
+6988 JT | Nitto Denko
+
+[AI Substrates, Glass Cloth & Metals]
+4062 JT | Ibiden
+3110 JT | Nitto Boseki
+3103 JT | Unitika
+5016 JT | JX Advanced Metals
+5706 JT | Mitsui Kinzoku
+
+[Cables & Optical Fibre]
+5803 JT | Fujikura
+5801 JT | Furukawa Electric
+5802 JT | Sumitomo Electric Industries
+
+[Electronic Components]
+6981 JT | Murata Manufacturing
+6976 JT | Taiyo Yuden
+6770 JT | Alps Alpine
+7751 JT | Canon
+
+[Industrials & Automation]
+6501 JT | Hitachi
+7011 JT | Mitsubishi Heavy Industries
+6954 JT | Fanuc
+6324 JT | Harmonic Drive Systems
+6407 JT | CKD
+6861 JT | Keyence
+5332 JT | TOTO
+
+[Trading, Shipping & Steel]
+8058 JT | Mitsubishi Corp
+8020 JT | Kanematsu
+9104 JT | Mitsui O.S.K. Lines
+5401 JT | Nippon Steel
+
+[Consumer, Games & Internet]
+7974 JT | Nintendo
+6758 JT | Sony Group
+9697 JT | Capcom
+6460 JT | Sega Sammy Holdings
+8136 JT | Sanrio
+4385 JT | Mercari
+6098 JT | Recruit Holdings
+9983 JT | Fast Retailing
+2802 JT | Ajinomoto
+9984 JT | SoftBank Group
+
+[Autos & Health Care]
+7203 JT | Toyota Motor
+7220 JT | Musashi Seimitsu Industry
+4502 JT | Takeda Pharmaceutical
+
+[Financials]
+8306 JT | Mitsubishi UFJ Financial
+8316 JT | Sumitomo Mitsui Financial Group
+8411 JT | Mizuho Financial Group
+
+# Only tickers here, never position sizes: this repository is public.

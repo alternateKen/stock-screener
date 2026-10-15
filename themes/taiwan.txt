@@ -1,0 +1,126 @@
+# TAIWAN theme (from the Taiwan Bloomberg watchlists). Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+# Codes are Bloomberg style (JT = Tokyo, KP = KOSPI, KQ = KOSDAQ, TT = Taiwan, HK = Hong Kong, CH = China A-shares).
+@title Taiwan
+@description TSMC and the chip ecosystem: design, memory, packaging and test, equipment, AI servers, optics, PCBs and CCL, power and cooling, plus financials and plastics.
+@order 43
+
+[Foundry & Chip Design]
+2330 TT | Taiwan Semiconductor Manufacturing
+2303 TT | United Microelectronics
+6770 TT | Powerchip Semiconductor Manufacturing
+5347 TT | Vanguard International Semiconductor
+2454 TT | MediaTek
+3661 TT | Alchip Technologies
+5274 TT | ASPEED Technology
+3529 TT | eMemory Technology
+6415 TT | Silergy
+6907 TT | Artery Technology
+
+[Compound Semis & Epitaxy]
+3105 TT | WIN Semiconductors
+2455 TT | Visual Photonics Epitaxy
+7415 TT | BE Epitaxy Semiconductor Technology
+4991 TT | GCS Holdings
+
+[Memory]
+2408 TT | Nanya Technology
+2344 TT | Winbond Electronics
+2337 TT | Macronix International
+8299 TT | Phison Electronics
+
+[Packaging & Test]
+3711 TT | ASE Technology Holding
+6239 TT | Powertech Technology
+2449 TT | King Yuan Electronics
+6147 TT | Chipbond Technology
+6223 TT | MPI
+6515 TT | WinWay Technology
+7769 TT | Hon. Precision
+2360 TT | Chroma ATE
+6830 TT | Msscorps
+
+[Semiconductor Equipment & Materials]
+3680 TT | Gudeng Precision Industrial
+3413 TT | Foxsemicon Integrated Technology
+3131 TT | Grand Process Technology
+6187 TT | All Ring Tech
+3583 TT | Scientech
+8027 TT | E&R Engineering
+6196 TT | Marketech International
+2464 TT | Mirle Automation
+1560 TT | Kinik
+4749 TT | Advanced Echem Materials
+7734 TT | AblePrint Technology
+6640 TT | Gallant Micro Machining
+3535 TT | Favite
+7822 TT | V5 Technologies
+2467 TT | C Sun Mfg
+
+[AI Servers & ODMs]
+2317 TT | Hon Hai Precision Industry
+2382 TT | Quanta Computer
+6669 TT | Wiwynn
+3231 TT | Wistron
+2356 TT | Inventec
+2059 TT | King Slide Works
+3701 TT | FIC Global
+
+[Networking & Optics]
+2345 TT | Accton Technology
+3163 TT | Browave
+3363 TT | FOCI Fiber Optic Communications
+3081 TT | LandMark Optoelectronics
+3450 TT | Elite Advanced Laser
+6451 TT | ShunSin Technology
+
+[PCBs, CCL & Passives]
+2383 TT | Elite Material
+6213 TT | ITEQ
+1815 TT | Fulltech Fiber Glass
+3037 TT | Unimicron Technology
+3189 TT | Kinsus Interconnect Technology
+8046 TT | Nan Ya Printed Circuit Board
+4958 TT | Zhen Ding Technology
+3044 TT | Tripod Technology
+2316 TT | WUS Printed Circuit
+8039 TT | Taiflex Scientific
+8358 TT | Co-Tech Development
+3167 TT | Ta Liang Technology
+8021 TT | Topoint Technology
+1802 TT | Taiwan Glass
+2327 TT | Yageo
+2478 TT | TA-I Technology
+2492 TT | Walsin Technology
+
+[Power, Cooling & Connectors]
+2308 TT | Delta Electronics
+3017 TT | Asia Vital Components
+3324 TT | Auras Technology
+8996 TT | Kaori Heat Treatment
+3653 TT | Jentech Precision Industrial
+3665 TT | BizLink Holding
+3533 TT | Lotes
+8147 TT | Nextronics Engineering
+2301 TT | Lite-On Technology
+1504 TT | TECO Electric & Machinery
+
+[Optics, Displays & Industrial]
+3008 TT | Largan Precision
+3406 TT | Genius Electronic Optical
+3481 TT | Innolux
+3717 TT | Excellence Optoelectronics
+1590 TT | Airtac International Group
+
+[Financials]
+2891 TT | CTBC Financial Holding
+2882 TT | Cathay Financial Holding
+2881 TT | Fubon Financial Holding
+
+[Plastics & Petrochemicals]
+1301 TT | Formosa Plastics
+1303 TT | Nan Ya Plastics
+1326 TT | Formosa Chemicals & Fibre
+6505 TT | Formosa Petrochemical
+PTTGC TB | PTT Global Chemical
+
+# Only tickers here, never position sizes: this repository is public.

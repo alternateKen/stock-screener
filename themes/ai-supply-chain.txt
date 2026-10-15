@@ -1,6 +1,6 @@
 # AI SUPPLY CHAIN theme: from chips to power. Edit on GitHub (pencil icon) and save: the site rebuilds itself.
 @title AI Supply Chain
-@description Accelerators, chipmaking equipment, memory, foundry and packaging, networking and optics, servers, power and cooling, and the hyperscalers whose capex drives it all.
+@description Accelerators, chipmaking equipment, memory, foundry and packaging, networking and optics, PCBs and substrates, servers, power and cooling, and the hyperscalers whose capex drives it all.
 @order 20
 
 [Accelerators & Custom Silicon]
@@ -13,6 +13,8 @@ ALAB | Astera Labs
 3661 TT | Alchip
 3443 TT | Global Unichip
 688256 CH | Cambricon
+688041 CH | Hygon Information Technology
+6809 HK | Montage Technology
 
 [Semiconductor Equipment]
 ASML | ASML
@@ -24,6 +26,11 @@ TER | Teradyne
 6857 JP | Advantest
 6920 JP | Lasertec
 002371 CH | Naura Technology
+6146 JT | Disco
+6525 JT | Kokusai Electric
+7735 JT | SCREEN Holdings
+042700 KP | Hanmi Semiconductor
+522 HK | ASMPT
 
 [Memory & Storage]
 MU | Micron
@@ -33,6 +40,10 @@ WDC | Western Digital
 STX | Seagate
 SNDK | SanDisk
 P | Everpure (formerly Pure Storage)
+285A JT | Kioxia
+688825 CH | CXMT
+2408 TT | Nanya Technology
+8299 TT | Phison Electronics
 
 [Foundry & Packaging]
 TSM | TSMC (ADR)
@@ -53,6 +64,20 @@ FN | Fabrinet
 300308 CH | Zhongji Innolight
 300502 CH | Eoptolink
 2345 TT | Accton
+5803 JT | Fujikura
+5801 JT | Furukawa Electric
+6869 HK | YOFC (Yangtze Optical Fibre)
+
+[PCBs, Substrates & CCL]
+4062 JT | Ibiden
+3037 TT | Unimicron
+2383 TT | Elite Material
+6213 TT | ITEQ
+300476 CH | Victory Giant Technology
+600183 CH | Shengyi Technology
+007660 KP | ISU Petasys
+4958 TT | Zhen Ding Technology
+3110 JT | Nitto Boseki (glass cloth)
 
 [Servers & ODMs]
 DELL | Dell Technologies
@@ -74,6 +99,10 @@ MOD | Modine
 2308 TT | Delta Electronics
 SU FP | Schneider Electric
 3017 TT | Asia Vital Components
+267260 KP | HD Hyundai Electric
+010120 KP | LS Electric
+298040 KP | Hyosung Heavy Industries
+3324 TT | Auras Technology
 
 [Power Generation]
 CEG | Constellation Energy
@@ -83,6 +112,8 @@ NRG | NRG Energy
 CCJ | Cameco
 OKLO | Oklo
 BE | Bloom Energy
+034020 KP | Doosan Enerbility
+U96.SI | Sembcorp Industries
 
 [Hyperscalers & Neoclouds]
 MSFT | Microsoft
