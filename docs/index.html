@@ -23,11 +23,38 @@ function themeCards(){
       <div class="row"><span>1M · YTD</span><b><span class="${cls(s.m1)}">${pc(s.m1)}</span> · <span class="${cls(s.ytd)}">${pc(s.ytd)}</span></b></div>
       <div class="row"><span>vs S&amp;P 3M</span><b class="${cls(s.rs3)}">${pts(s.rs3)}</b></div>
       <div class="row"><span>Above 50d / 200d</span><b>${s.a50}/${s.n50} · ${s.a200}/${s.n200}</b></div>
+      <div class="row"><span>Uptrend / downtrend</span><b><span class="up">${s.tup}</span> / <span class="dn">${s.tdn}</span> <span class="mu" style="font-weight:400">of ${s.nt}</span></b></div>
       <div class="row"><span>Avg trend score</span><b>${s.score==null?'–':s.score.toFixed(1)+'/6'}</b></div>
       <div class="row"><span>Signals</span><b><span class="up">${s.bull}▲</span> <span class="dn">${s.bear}▼</span></b></div>
       ${lead&&gs.length>1?`<div class="row"><span>Best 1M basket</span><b class="${cls(lead.s.m1)}">${esc(lead.g)} ${pc(lead.s.m1)}</b></div><div class="row"><span>Worst 1M basket</span><b class="${cls(lag.s.m1)}">${esc(lag.g)} ${pc(lag.s.m1)}</b></div>`:''}
       <div class="bar" title="${s.adv} up, ${s.dec} down"><i style="width:${s.adv/tot*100}%;background:var(--up)"></i><i style="width:${s.dec/tot*100}%;background:var(--dn)"></i></div>
       <div class="tag" style="margin-top:6px">${esc(t.description||'')}</div></a>`}).join('');
+}
+// ---- market direction (the "Market Direction" ETF theme) ----
+const PAIRS=[['RSP','SPY','Breadth: equal weight vs cap weight S&P','broadening (the average stock is keeping up)','narrowing (led by the mega caps)'],
+  ['QQQE','QQQ','Nasdaq-100 equal vs cap weight','broadening in tech','narrow mega-cap tech leadership'],
+  ['IWM','SPY','Small caps vs large caps','risk appetite / rate-cut hopes','flight to size and quality'],
+  ['XLY','XLP','Discretionary vs staples','risk-on consumer','defensive rotation'],
+  ['SMH','SPY','Semiconductors vs S&P 500','AI / cycle leadership','semis lagging'],
+  ['IWF','IWD','Growth vs value','growth leading','value leading'],
+  ['HYG','IEF','High yield vs Treasuries','credit risk appetite','credit stress / risk-off'],
+  ['EFA','SPY','Developed ex-US vs US','international leading','US leading'],
+  ['EEM','SPY','Emerging vs US','EM leading','US leading'],
+  ['GLD','SPY','Gold vs stocks','hedges in demand','risk assets preferred']];
+function mktTheme(){return D.themes.find(t=>t.slug==='market-etfs')}
+function mktRow(sym){const t=mktTheme();if(!t)return null;for(const g of t.groups){const it=g.items.find(i=>i.sym===sym);if(it){const s=D.stocks[it.k];return s?{...s,...it}:null}}return null}
+function marketPanel(){
+  const t=mktTheme();if(!t)return '';
+  const all=t.groups.flatMap(g=>rowsOf(g.items)).filter(r=>!r.missing),s=stats(all),spy=mktRow('SPY');
+  const pairs=PAIRS.map(([a,b,lab,pos,neg])=>{const A=mktRow(a),B=mktRow(b);if(!A||!B||A.m1==null||B.m1==null)return '';
+    const d1=A.m1-B.m1,d3=A.m3!=null&&B.m3!=null?A.m3-B.m3:null;
+    return `<tr><td class="nm" style="white-space:normal">${esc(lab)}<small>${esc(a)} vs ${esc(b)}</small></td><td class="${cls(d1)}">${pts(d1)}</td><td class="${cls(d3)} hide-sm">${pts(d3)}</td><td style="text-align:left;white-space:normal;font-size:12px" class="${cls(d1)}">${d1>=0?esc(pos):esc(neg)}</td></tr>`}).join('');
+  const groups=t.groups.map(g=>`<div class="panel"><h3>${esc(g.name)}</h3>${rowsOf(g.items).filter(r=>!r.missing).map(r=>`<div class="mrow" style="grid-template-columns:62px 1fr 58px"><div class="mt"><b>${chartLink(r,esc(r.sym))}</b><small>${esc(r.label)}</small></div><div style="font-size:12px">${trendCell(r)}</div><div class="mv ${cls(r.m1)}">${pc(r.m1)}<small class="mu">1M</small></div></div>`).join('')}</div>`).join('');
+  return `<section id="market"><h2>Market direction</h2>
+    <div class="desc">${spy?`S&amp;P 500 (SPY): ${trendCell(spy)} · 1M <span class="${cls(spy.m1)}">${pc(spy.m1)}</span> · RSI ${spy.rsi==null?'–':spy.rsi.toFixed(0)} · `:''}${s.tup} of ${s.nt} market ETFs in uptrends, ${s.tdn} in downtrends · ${s.a200} of ${s.n200} above their 200-day average</div>
+    <div class="scroll"><table><tr><th>Rotation gauge</th><th>1M spread</th><th class="hide-sm">3M spread</th><th style="text-align:left">Reading (1M)</th></tr>${pairs}</table></div>
+    <div class="movers">${groups}</div>
+    <p><a class="more" href="theme.html?t=market-etfs">Open the Market Direction theme (full table, levels, patterns, its own Claude brief) &rarr;</a></p></section>`;
 }
 function universeRows(){
   const by={};D.universe.forEach(u=>u.items.forEach(it=>{const s=D.stocks[it.k];if(s&&!by[it.k])by[it.k]={...s,...it,uni:u.name}}));
@@ -58,11 +85,16 @@ function signalsPanel(){
 function briefText(){
   const L=[];
   L.push('I run an equity fund. Below is a one-line-per-basket summary of all my theme watchlists plus breadth of the broad screen. Using ONLY this data (do not invent numbers or news):');
+  L.push('0. Market direction first: what do the index, breadth and rotation gauges (equal vs cap weight, small vs large, growth vs value, credit vs Treasuries, discretionary vs staples) say about the tide, and is it supportive of the themes below?');
   L.push('1. Where is leadership: which themes and baskets are strongest/weakest on 1M, 3M and relative strength vs the S&P 500, and is breadth confirming?');
   L.push('2. Rotation: what is improving vs deteriorating (compare 1W vs 1M vs 3M), and what that says about risk appetite.');
   L.push('3. Which theme pages I should open first today and why. Short bullets.');
   L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
+  L.push('','## Market direction (rotation gauges: 1M / 3M performance spread, first minus second)');
+  PAIRS.forEach(([a,b,lab])=>{const A=mktRow(a),B=mktRow(b);if(A&&B&&A.m1!=null&&B.m1!=null)L.push(`${lab} (${a} vs ${b}): ${f2(A.m1-B.m1,1)} pts 1M, ${A.m3!=null&&B.m3!=null?f2(A.m3-B.m3,1):'n/a'} pts 3M`)});
+  const mt=mktTheme();if(mt)mt.groups.forEach(g=>L.push(g.name+': '+rowsOf(g.items).filter(r=>!r.missing).map(r=>`${r.sym} ${r.trend?r.trend.label:''} 1M ${f2(r.m1,1)}%`).join('; ')));
   D.themes.forEach(t=>{
+    if(t.slug==='market-etfs')return;
     L.push('','## '+t.title);
     t.groups.forEach(g=>{const s=stats(rowsOf(g.items));
       L.push(`${g.name} (${s.n}): day ${f2(s.day)}%, 1W ${f2(s.w1)}%, 1M ${f2(s.m1)}%, 3M ${f2(s.m3)}%, YTD ${f2(s.ytd)}%, vs S&P 3M ${f2(s.rs3,1)} pts, above 50d ${s.a50}/${s.n50}, above 200d ${s.a200}/${s.n200}, avg RSI ${f2(s.rsi,0)}, avg trend score ${f2(s.score,1)}, signals ${s.bull} bullish / ${s.bear} bearish`)});
@@ -72,10 +104,10 @@ function briefText(){
   return L.join('\n');
 }
 load(()=>{
-  document.getElementById('main').innerHTML=`<section id="themes"><h2>Themes</h2><div class="cards">${themeCards()}</div>
+  document.getElementById('main').innerHTML=marketPanel()+`<section id="themes"><h2>Themes</h2><div class="cards">${themeCards()}</div>
     <div class="note">Each theme is one file in the themes/ folder of the GitHub repository: edit it with the pencil icon and the site rebuilds itself. New tickers can go in themes/inbox.txt.</div></section>`
     +signalsPanel()+copyBlock('claude-brief','Cross-theme brief with Claude')+`<section><h2>About</h2><div class="note">Trend score 0-6: one point each for price above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, and beating the S&amp;P 500 over 3 months. All data from Yahoo Finance (free, may be delayed); overseas prices in local currency. Not investment advice.</div>${errorsBlock()}</section>`;
-  document.getElementById('nav').innerHTML=[['themes','Themes'],...D.themes.map(t=>['theme.html?t='+t.slug,t.title]),['screen.html','Signals'],['claude-brief','Claude']]
+  document.getElementById('nav').innerHTML=[['market','Market'],['themes','Themes'],...D.themes.map(t=>['theme.html?t='+t.slug,t.title]),['screen.html','Signals'],['claude-brief','Claude']]
     .map(([i,l])=>`<a href="${i.includes('.html')?i:'#'+i}">${esc(l)}</a>`).join('');
   wireCopy(briefText);
 });

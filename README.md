@@ -3,6 +3,7 @@
 One website with all your themed watchlists plus a broad technical screen. It refreshes itself during US market hours, using free Yahoo Finance prices, TradingView's technical rating and Wikipedia index membership, with no API keys.
 
 - **Home page:** one card per theme (day / 1M / YTD, relative strength vs the S&P 500, breadth, average trend score, signal counts, best and worst basket). Below that, a summary of the broad screen.
+- **Market direction (top of the home page):** about 70 index, style, sector, industry, bond, commodity and country ETFs (theme file `themes/market-etfs.txt`), each with its trend. Rotation gauges show where money is moving: equal weight vs cap weight, small vs large caps, growth vs value, high yield vs Treasuries, discretionary vs staples, semis vs the S&P, international vs US, gold vs stocks.
 - **Theme pages:** one per file in `themes/`. Each has basket cards, best/worst today, technical signals, unusual volume, RSI extremes, sortable tables (Day, 1W, 1M, YTD, vs S&P 3M, 52-week range, 50d/200d trend, RSI 14, volume, trend score), headlines, a live TradingView price box and a **Copy brief for Claude** button.
 - **Chart pages:** click any stock's name for a daily candle chart (3M / 6M / 1Y / 2Y) with 20/50/200-day moving averages, volume, golden/death cross markers, and RSI 14 and MACD panels underneath, all moving together. Each page also has its technical summary, an optional live TradingView chart, and a **Copy chart read for Claude** button that sends Claude the last 60 sessions of prices and indicators.
 - **Signals page:** about 650 stocks (S&P 500 and Nasdaq-100 members, loaded live from Wikipedia, plus curated large caps in Hong Kong, China A-shares, Taiwan, Korea and Japan). It shows breadth by GICS sector and market, and a filterable list of every stock with a signal. It has its own Claude brief.
@@ -46,6 +47,16 @@ SHOP | Shopify | NASDAQ             <- optional 3rd column: TradingView exchange
 | Volume surge | Volume at least 2× the 20-day average (partial during the day) |
 
 **TradingView rating:** TradingView's own technical summary (Strong buy … Strong sell, built from about 26 moving averages and oscillators), from its screener. It's a second opinion next to our own signals; the Claude briefs ask Claude to flag where the two disagree. It comes from an undocumented TradingView endpoint, so if TradingView changes or blocks it, the column goes blank and everything else keeps working.
+
+**Price structure** (`scripts/patterns.py`):
+- **Trend:** uptrend, downtrend or sideways. Each of these adds or subtracts a point: higher or lower swing highs; higher or lower swing lows; price above or below the 50-day average; the 50-day average rising or falling; and the 50-day above or below the 200-day. "Strong" means ADX is above 25. "Range-bound" means sideways with ADX below 20.
+- **Support / resistance:** turning points (swing highs and lows) from the past year are grouped into price bands about one ATR wide. A level's strength is the number of times price turned there. The two nearest levels below and above the price are shown, ranked by distance and touches, within 30% of the price.
+- **Chart patterns:**
+  - Double top / bottom: two peaks or troughs within 3% of each other, at least 15 days apart, with a dip between them of at least 5% (or 3× ATR, whichever is larger).
+  - Head and shoulders, and its inverse: a head at least 3% beyond two roughly level shoulders, with the neckline drawn through the two troughs.
+  - Each needs a prior move to reverse. It is "forming" until the close breaks the neckline by 1%, then "confirmed" (shown for 15 sessions), with a measured target (the pattern's height projected from the neckline).
+- **Breakout / breakdown:** the close moved at least 1% through a level touched twice or more, within the last 3 sessions.
+- The chart page draws all of these on the candles: S1/S2 and R1/R2 lines, the pattern's peaks and troughs, the neckline, and the target.
 
 **Trend score (0–6):** one point each for price above its 50-day average, above its 200-day average, 50-day above 200-day, MACD above its signal line, RSI above 50, and beating the S&P 500 over 3 months.
 

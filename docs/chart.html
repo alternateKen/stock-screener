@@ -69,6 +69,23 @@ function draw(){
   const mk=[];for(let i=1;i<c.length;i++){const a=ma.ma50,b=ma.ma200;if(a[i-1]==null||b[i-1]==null)continue;
     if(a[i-1]<b[i-1]&&a[i]>=b[i])mk.push({time:C.t[i],position:'belowBar',color:up,shape:'arrowUp',text:'Golden'});
     if(a[i-1]>b[i-1]&&a[i]<=b[i])mk.push({time:C.t[i],position:'aboveBar',color:dn,shape:'arrowDown',text:'Death'})}
+  // support / resistance and chart patterns from the engine (scripts/patterns.py)
+  if(document.getElementById('cb-lv').checked&&R.sr){
+    (R.sr.sup||[]).forEach((x,i)=>cs.createPriceLine({price:x.p,color:up,lineWidth:1,lineStyle:2,axisLabelVisible:true,title:`S${i+1} (${x.n}×)`}));
+    (R.sr.res||[]).forEach((x,i)=>cs.createPriceLine({price:x.p,color:dn,lineWidth:1,lineStyle:2,axisLabelVisible:true,title:`R${i+1} (${x.n}×)`}));
+    const known=new Set(C.t);
+    (R.pat||[]).forEach(p=>{
+      const col=p.d>0?up:dn,pts=p.pts.filter(x=>known.has(x[0]));
+      if(pts.length>1){const ln=pc.addLineSeries({color:col,lineWidth:2,lineStyle:0,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});ln.setData(pts.map(x=>({time:x[0],value:x[1]})));}
+      const nk=p.neck_pts.filter(x=>known.has(x[0]));
+      if(nk.length>1){const nl=pc.addLineSeries({color:col,lineWidth:1,lineStyle:1,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false,title:'neckline'});nl.setData(nk.map(x=>({time:x[0],value:x[1]})));}
+      if(p.target)cs.createPriceLine({price:p.target,color:col,lineWidth:1,lineStyle:3,axisLabelVisible:true,title:'target'});
+      const tag={dtop:'Double top',dbot:'Double bottom',hs:'H&S',ihs:'Inv. H&S'}[p.k]||p.name;
+      const last=pts[pts.length-1];
+      if(last)mk.push({time:last[0],position:p.d>0?'belowBar':'aboveBar',color:col,shape:'circle',text:`${tag} (${p.state})`});
+    });
+    mk.sort((a,b)=>a.time-b.time);
+  }
   cs.setMarkers(mk);
   // RSI pane
   const rc=LightweightCharts.createChart(document.getElementById('rsi-pane'),opts(130));
@@ -121,6 +138,10 @@ function statsHTML(){
     ${box('52-week range',rp==null?'–':`${(rp*100).toFixed(0)}% <span class="mu" style="font-size:12px">(${pc(r.off_hi)} from high)</span>`)}
     ${box('ATR 14 · volume',`${r.atr_pct==null?'–':r.atr_pct.toFixed(1)+'%'} · ${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}`)}
     ${box('Trend score',scoreBar(r.score))}
+    ${box('Trend',r.trend?`${trendCell(r)}<div class="mu" style="font-size:11px;font-weight:400">${esc(r.trend.why)}${r.trend.adx!=null?' · ADX '+r.trend.adx:''}</div>`:'–')}
+    ${box('Support',r.sr&&r.sr.sup.length?r.sr.sup.map(x=>`<span class="up">${fmt(x.p,2)}</span> <span class="mu" style="font-size:12px">${pc(lvPct(x.p,r.last),1)} · ${x.n}×</span>`).join('<br>'):'–')}
+    ${box('Resistance',r.sr&&r.sr.res.length?r.sr.res.map(x=>`<span class="dn">${fmt(x.p,2)}</span> <span class="mu" style="font-size:12px">${pc(lvPct(x.p,r.last),1)} · ${x.n}×</span>`).join('<br>'):'<span class="mu">None: at or near highs</span>')}
+    ${(r.pat||[]).length?box('Chart patterns',r.pat.map(p=>`<span class="${p.d>0?'up':'dn'}">${esc(p.name)}</span> <span class="mu" style="font-size:12px">${p.state} · neckline ${fmt(p.neck,2)} · target ${fmt(p.target,2)}</span>`).join('<br>')):''}
     ${box('TradingView rating',tvCell(r))}
     ${r.st?box('Street (Bloomberg)',`${stCell(r)}<div class="mu" style="font-size:11px;font-weight:400">${r.st.n||'?'} analysts · rating ${r.st.rt==null?'–':r.st.rt.toFixed(1)}/5 · EPS est. 4w ${r.st.rev4w==null?'–':pc(r.st.rev4w)}</div>`):''}
   </div>${(r.signals||[]).length?`<div style="margin-top:10px">${sigChips(r)}</div>`:''}`;
@@ -128,11 +149,12 @@ function statsHTML(){
 function briefText(){
   const r=R,c=C.c,ma={a:smaS(c,20),b:smaS(c,50),d:smaS(c,200)},rsi=rsiS(c),m=macdS(c),n=c.length,L=[];
   L.push(`Act as a technical analyst. Using ONLY the data below for ${r.label} (${r.sym}) (do not invent numbers or news), give me a chart read:`);
-  L.push('1. Trend on three horizons (short: 20d, medium: 50d, long: 200d) and where price sits against each average.');
+  L.push('1. Trend on three horizons (short: 20d, medium: 50d, long: 200d) and where price sits against each average; is the swing structure (higher highs / higher lows) intact?');
   L.push('2. Momentum: RSI 14 level and any divergence with price over the last 2-3 months; MACD position, recent crosses and histogram direction.');
   L.push('3. Key levels: recent swing highs/lows, the 52-week high/low, and moving averages acting as support or resistance.');
   L.push('4. Volume: is it confirming the latest move?');
-  L.push('5. A bull case and a bear case with the price levels that would confirm or invalidate each, and what to check on Bloomberg. Be concise, short bullets.');
+  L.push('5. Check the support / resistance levels and any chart pattern listed in the summary against the 60-session data: are they valid, and what would confirm or negate the pattern?');
+  L.push('6. A bull case and a bear case with the price levels that would confirm or invalidate each, and what to check on Bloomberg. Be concise, short bullets.');
   L.push('',freshness(),'Summary: '+lineFor(r),'','Last 60 sessions (date, open, high, low, close, volume, MA20, MA50, MA200, RSI14, MACD, signal):');
   const g=v=>v==null?'':(+v.toPrecision(5));
   for(let i=Math.max(0,n-60);i<n;i++)L.push([new Date(C.t[i]*1000).toISOString().slice(0,10),C.o[i],C.h[i],C.l[i],c[i],C.v[i],g(ma.a[i]),g(ma.b[i]),g(ma.d[i]),rsi[i]==null?'':rsi[i].toFixed(1),g(m.line[i]),g(m.sig[i])].join(', '));
@@ -160,12 +182,12 @@ load(()=>{
   document.getElementById('main').innerHTML=`<section id="summary"><h2>Technical summary${R.cur?' · prices in '+esc(R.cur):''}</h2>${statsHTML()}</section>
    <section id="chart"><h2>Daily chart</h2>
     <div class="toolbar">${['3m','6m','1y','2y'].map(r=>`<span class="fchip" data-range="${r}">${r.toUpperCase()}</span>`).join('')}
-      <span class="key" style="margin-left:8px;font-size:12px">${['ma20','ma50','ma200'].map(k=>`<label style="margin-right:8px"><input type="checkbox" id="cb-${k}" checked> <i style="background:${COL[k]}"></i>${k.replace('ma','MA ')}</label>`).join('')}</span>
+      <span class="key" style="margin-left:8px;font-size:12px"><label style="margin-right:8px"><input type="checkbox" id="cb-lv" checked> Levels &amp; patterns</label>${['ma20','ma50','ma200'].map(k=>`<label style="margin-right:8px"><input type="checkbox" id="cb-${k}" checked> <i style="background:${COL[k]}"></i>${k.replace('ma','MA ')}</label>`).join('')}</span>
       <a class="more" style="margin-left:auto" href="${tvUrl}" target="_blank" rel="noopener">Open in TradingView &rarr;</a></div>
     <div class="pane" id="main-pane"><div class="legend" id="lg-main"></div></div>
     <div class="panetitle">RSI 14 · overbought 70 / oversold 30</div><div class="pane" id="rsi-pane"><div class="legend" id="lg-rsi"></div></div>
     <div class="panetitle">MACD 12, 26, 9</div><div class="pane" id="macd-pane"><div class="legend" id="lg-macd"></div></div>
-    <div class="note">Drag to scroll, scroll or pinch to zoom; the three panels move together. Arrows mark golden and death crosses (50-day through 200-day). Indicators use the same formulas as the screener tables. Charts by <a class="more" href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</div></section>
+    <div class="note">Drag to scroll, scroll or pinch to zoom; the three panels move together. Arrows mark golden and death crosses (50-day through 200-day). Dashed green / red lines are support (S) and resistance (R) levels with the number of times price turned there; solid lines join a chart pattern's peaks and troughs, the dotted line is its neckline, and "target" is the pattern's measured move. Indicators use the same formulas as the screener tables. Charts by <a class="more" href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</div></section>
    <section id="tradingview"><h2>TradingView live chart</h2><div id="tvwrap"><button class="copy" id="tvbtn">Load the TradingView chart</button>
     <div class="note">Live, fully interactive, with TradingView's own indicators and drawing tools. Some Asian exchanges are not shown in TradingView's free embedded chart: use "Open in TradingView" above instead.</div></div><div id="tvbox"></div></section>
    ${copyBlock('claude-brief','Chart read with Claude')}`;
@@ -175,7 +197,7 @@ load(()=>{
   fetch('charts/'+K.replace(/[^A-Za-z0-9.-]/g,'_')+'.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('chart data missing');return r.json()}).then(c=>{
     C=c;draw();
     document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>setRange(b.dataset.range));
-    ['ma20','ma50','ma200'].forEach(k=>document.getElementById('cb-'+k).onchange=draw);
+    ['ma20','ma50','ma200','lv'].forEach(k=>document.getElementById('cb-'+k).onchange=draw);
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
   }).catch(e=>{document.getElementById('chart').insertAdjacentHTML('beforeend',`<div class="banner" style="display:block">Could not load the chart data: ${esc(e.message)}</div>`)});
 });

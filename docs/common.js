@@ -13,7 +13,26 @@ const f2=(v,x=2)=>v==null?'n/a':v.toFixed(x);
 
 // signal types: key -> [short label for filter chips, bullish?]
 const SIGNALS={hi52:['52w high',1],lo52:['52w low',-1],x200u:['Above 200d',1],x200d:['Below 200d',-1],x50u:['Above 50d',1],x50d:['Below 50d',-1],
-  golden:['Golden cross',1],death:['Death cross',-1],macdu:['MACD up',1],macdd:['MACD down',-1],rsi70:['RSI ≥ 70',-1],rsi30:['RSI ≤ 30',1],vol:['Volume surge',0]};
+  golden:['Golden cross',1],death:['Death cross',-1],macdu:['MACD up',1],macdd:['MACD down',-1],rsi70:['RSI ≥ 70',-1],rsi30:['RSI ≤ 30',1],vol:['Volume surge',0],
+  brku:['Breakout',1],brkd:['Breakdown',-1],dbot:['Double bottom',1],ihs:['Inverse H&S',1],dtop:['Double top',-1],hs:['Head & shoulders',-1]};
+const TREND_ORDER={up:1,side:0,down:-1};
+// trend from price structure (higher highs / lows), the 50/200-day averages and ADX (scripts/patterns.py)
+function trendCell(r){
+  const t=r.trend;if(!t)return '<span class="mu">–</span>';
+  const c=t.dir==='up'?'up':t.dir==='down'?'dn':'mu',a=t.dir==='up'?'↗ ':t.dir==='down'?'↘ ':'→ ';
+  return `<span class="${c}" title="${esc(t.why||'')}${t.adx!=null?' · ADX '+t.adx:''}">${a}${esc(t.label)}</span>`;
+}
+const lvPct=(p,last)=>last?(p/last-1)*100:null;
+// nearest support and resistance with distance from the price; hover shows the second level and the number of touches
+function srCell(r){
+  const s=r.sr;if(!s)return '<span class="mu">–</span>';
+  const one=(x,k)=>x?`<span class="${k==='S'?'up':'dn'}">${k} ${fmt(x.p,x.p>=1000?0:2)}</span> <span class="mu">${pc(lvPct(x.p,r.last),1)}</span>`:`<span class="mu">${k} –</span>`;
+  const tip=['Support: '+(s.sup||[]).map(x=>fmt(x.p,2)+' ('+x.n+' touches)').join(', '),'Resistance: '+((s.res||[]).map(x=>fmt(x.p,2)+' ('+x.n+' touches)').join(', ')||'none: at or near highs')].join(' · ');
+  return `<span title="${esc(tip)}" style="white-space:nowrap">${one((s.sup||[])[0],'S')}<br>${(s.res||[]).length?one(s.res[0],'R'):'<span class="mu">R none (at highs)</span>'}</span>`;
+}
+function patText(r){return (r.pat||[]).map(p=>`${p.name} ${p.state} (neckline ${fmt(p.neck,2)}, target ${fmt(p.target,2)})`).join('; ')}
+const TREND_COL=['trend','Trend',r=>`<td class="hide-sm" style="text-align:left">${trendCell(r)}</td>`,r=>r.trend?r.trend.score:null,1];
+const SR_COL=['sr','Support / Resistance',r=>`<td class="hide-sm" style="text-align:left;font-size:12px">${srCell(r)}</td>`,r=>r.sr&&r.sr.sup&&r.sr.sup[0]?lvPct(r.sr.sup[0].p,r.last):null,1];
 
 function spark(a){
   if(!a||a.length<2)return '';
@@ -58,13 +77,14 @@ function stats(rows){
     day:avg(rows.map(r=>r.pct)),w1:avg(rows.map(r=>r.w1)),m1:avg(rows.map(r=>r.m1)),m3:avg(rows.map(r=>r.m3)),ytd:avg(rows.map(r=>r.ytd)),
     rs1:avg(rows.map(r=>r.rs1)),rs3:avg(rows.map(r=>r.rs3)),rsi:avg(rows.map(r=>r.rsi)),score:avg(rows.map(r=>r.score)),
     a50:above('ma50'),n50:n('ma50'),a200:above('ma200'),n200:n('ma200'),
-    bull:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d>0).length,0),bear:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d<0).length,0)};
+    bull:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d>0).length,0),bear:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d<0).length,0),
+    tup:rows.filter(r=>r.trend&&r.trend.dir==='up').length,tdn:rows.filter(r=>r.trend&&r.trend.dir==='down').length,nt:rows.filter(r=>r.trend).length};
 }
 function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];return s?{...s,...it,...extra}:{...it,...extra,missing:true}})}
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>

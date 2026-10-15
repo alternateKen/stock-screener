@@ -32,6 +32,7 @@ function summary(){
       <div class="row"><span>YTD</span><b class="${cls(s.ytd)}">${pc(s.ytd)}</b></div>
       <div class="row"><span>vs S&amp;P 1M / 3M</span><b><span class="${cls(s.rs1)}">${pts(s.rs1)}</span> / <span class="${cls(s.rs3)}">${pts(s.rs3)}</span></b></div>
       <div class="row"><span>Above 50d / 200d</span><b>${s.a50}/${s.n50} · ${s.a200}/${s.n200}</b></div>
+      <div class="row"><span>Uptrend / downtrend</span><b><span class="up">${s.tup}</span> / <span class="dn">${s.tdn}</span> <span class="mu" style="font-weight:400">of ${s.nt}</span></b></div>
       <div class="row"><span>Avg RSI · trend score</span><b><span class="${rsiCls(s.rsi)}">${s.rsi==null?'–':s.rsi.toFixed(0)}</span> · ${s.score==null?'–':s.score.toFixed(1)+'/6'}</b></div>
       <div class="row"><span>Signals</span><b><span class="up">${s.bull} bullish</span> · <span class="dn">${s.bear} bearish</span></b></div>
       <div class="bar" title="${s.adv} up, ${s.dec} down"><i style="width:${s.adv/tot*100}%;background:var(--up)"></i><i style="width:${s.dec/tot*100}%;background:var(--dn)"></i></div>
@@ -64,7 +65,9 @@ const COLS=[
  ['ytd','YTD',r=>`<td class="${cls(r.ytd)}">${pc(r.ytd)}</td>`],
  ['rs3','vs S&P 3M',r=>`<td class="${cls(r.rs3)} hide-sm">${pts(r.rs3)}</td>`,null,1],
  ['rng','52w range',r=>{const rp=rangePos(r);return `<td class="hide-sm">${rp==null?'–':`<span class="rng" title="${fmt(r.lo52,2)} – ${fmt(r.hi52,2)}"><i style="left:calc(${(rp*100).toFixed(0)}% - 1px)"></i></span> <span class="mu">${(rp*100).toFixed(0)}%</span>`}</td>`},rangePos,1],
- ['ma','Trend',r=>`<td class="hide-sm" style="text-align:left">${maPill(r)}</td>`,r=>(r.ma50!=null&&r.last>r.ma50?1:0)+(r.ma200!=null&&r.last>r.ma200?1:0),1],
+ TREND_COL,
+ SR_COL,
+ ['ma','vs MA',r=>`<td class="hide-sm" style="text-align:left">${maPill(r)}</td>`,r=>(r.ma50!=null&&r.last>r.ma50?1:0)+(r.ma200!=null&&r.last>r.ma200?1:0),1],
  ['rsi','RSI 14',r=>`<td class="hide-sm">${r.rsi==null?'–':`${rsiGauge(r.rsi)} <span class="${rsiCls(r.rsi)}" style="display:inline-block;min-width:22px">${r.rsi.toFixed(0)}</span>`}</td>`,null,1],
  ['vol_x','Vol ×',r=>`<td class="hide-sm ${r.vol_x>=1.8?'up':''}">${r.vol_x==null?'–':r.vol_x.toFixed(1)+'×'}</td>`,null,1],
  ['score','Score',r=>`<td class="hide-sm">${scoreBar(r.score)}</td>`,null,1],
@@ -75,16 +78,18 @@ function basketHTML(g,i){
   const rows=sortRows(groupRows(g),st,COLS);
   const th=COLS.map(([k,l,,, sm])=>`<th class="${st.k===k?'on':''} ${sm?'hide-sm':''}" data-b="${i}" data-k="${k}">${l}${st.k===k?(st.dir>0?' ↑':' ↓'):''}</th>`).join('');
   const body=rows.map((r,j)=>{
-    if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="13" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
+    if(r.missing)return `<tr><td class="nm">${esc(r.label)}<small>${esc(r.sym)}</small></td><td colspan="${COLS.length}" class="mu" style="text-align:left">No data from Yahoo for this ticker (check the symbol, or it may be newly listed/delisted)</td></tr>`;
     const nws=(r.news||[]).map(n=>`<a href="${esc(n.link)}" target="_blank" rel="noopener">${esc(n.title)}</a>`).join('')||'<span class="mu">No recent headlines</span>';
-    const extra=`<div style="margin-bottom:4px"><a class="more" href="${chartUrl(r.k)}">Open the chart (candles, moving averages, RSI, MACD) &rarr;</a></div><div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.tv_industry?' · '+esc(r.tv_industry):''}${r.cur?' · '+esc(r.cur):''}</div>`;
+    const lv=r.sr?`<div style="font-size:12px;margin-bottom:4px"><b>Levels:</b> support ${(r.sr.sup||[]).map(x=>`<span class="up">${fmt(x.p,2)}</span> <span class="mu">(${pc(lvPct(x.p,r.last),1)}, ${x.n} touches)</span>`).join(' · ')||'–'} &nbsp;|&nbsp; resistance ${(r.sr.res||[]).map(x=>`<span class="dn">${fmt(x.p,2)}</span> <span class="mu">(${pc(lvPct(x.p,r.last),1)}, ${x.n} touches)</span>`).join(' · ')||'<span class="mu">none: at or near highs</span>'}${r.trend?` &nbsp;|&nbsp; <b>Trend:</b> ${trendCell(r)} <span class="mu">${esc(r.trend.why)}${r.trend.adx!=null?', ADX '+r.trend.adx:''}</span>`:''}</div>`:'';
+    const pt=(r.pat||[]).length?`<div style="font-size:12px;margin-bottom:4px"><b>Patterns:</b> ${r.pat.map(p=>`<span class="${p.d>0?'up':'dn'}">${esc(p.name)} ${p.state}</span> <span class="mu">(neckline ${fmt(p.neck,2)}, target ${fmt(p.target,2)})</span>`).join(' · ')}</div>`:'';
+    const extra=lv+pt+`<div style="margin-bottom:4px"><a class="more" href="${chartUrl(r.k)}">Open the chart (candles, levels, patterns, RSI, MACD) &rarr;</a></div><div class="mu" style="font-size:12px;margin-bottom:4px">MACD ${r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'above':'below')+' signal'} · ATR ${pc(r.atr_pct,1).replace('+','')} of price · ${pc(r.off_hi,1)} from 52w high · vs S&P 1M ${pts(r.rs1)}${r.tv_industry?' · '+esc(r.tv_industry):''}${r.cur?' · '+esc(r.cur):''}</div>`;
     return `<tr class="main" data-n="${i}-${j}"><td class="nm">${chartLink(r,esc(r.label))}<small>${esc(r.sym)} · ${fmt(r.last,2)}</small>${(r.signals||[]).length?`<div>${sigChips(r,3)}</div>`:''}</td>
       ${COLS.slice(1).map(c=>c[2](r)).join('')}<td class="${cls(r.m1)}">${spark(r.spark)}</td></tr>
-      <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="14">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
+      <tr class="nw" id="nw-${i}-${j}" style="display:none"><td colspan="${COLS.length+1}">${extra}${(r.signals||[]).length?`<div style="margin-bottom:4px">${sigChips(r)}</div>`:''}${nws}</td></tr>`}).join('');
   const s=stats(groupRows(g));
   return `<section id="${slug(g.name)}"><h2>${esc(g.name)} · avg day <span class="${cls(s.day)}">${pc(s.day,2)}</span> · 1M <span class="${cls(s.m1)}">${pc(s.m1)}</span></h2>
     <div class="scroll"><table><tr>${th}<th>45d</th></tr>${body}</table></div>
-    <div class="note">Click a column to sort, click a row for details and headlines, click a stock's name for its chart. Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months). Street = Bloomberg consensus: upside to the average analyst target, % of analysts rating Buy, ▲▼ = earnings estimates rising or falling over 4 weeks (hover for detail). TradingView = its own technical rating (Strong buy to Strong sell, from 26 moving averages and oscillators), shown as a second opinion; hover for the parts.</div></section>`;
+    <div class="note">Click a column to sort, click a row for levels, patterns and headlines, click a stock's name for its chart. Trend = higher highs / higher lows, price vs the 50-day and its slope, 50d vs 200d (strong = ADX above 25). Support / Resistance = nearest levels the price has turned at before (hover for touches). Overseas prices are in local currency. Score = trend score 0-6 (one point each: above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&amp;P over 3 months). Street = Bloomberg consensus: upside to the average analyst target, % of analysts rating Buy, ▲▼ = earnings estimates rising or falling over 4 weeks (hover for detail). TradingView = its own technical rating (Strong buy to Strong sell, from 26 moving averages and oscillators), shown as a second opinion; hover for the parts.</div></section>`;
 }
 function liveBlock(){
   return `<section id="live"><h2>Live prices from TradingView (refreshes every time you reload this page)</h2>
@@ -105,9 +110,10 @@ function briefText(){
   L.push(`I run an equity fund. This is my "${T.title}" theme watchlist${T.description?' ('+T.description+')':''}. Using ONLY the data below (do not invent numbers or news), give me a technical brief:`);
   L.push('1. Basket by basket: is momentum confirming or fading? Compare day / 1W / 1M / 3M / YTD, relative strength vs the S&P 500, breadth (how many above the 50- and 200-day averages) and the average trend score.');
   L.push('2. Dispersion inside each basket: leaders and laggards, and names diverging from the rest of their basket.');
-  L.push('3. The technical signals listed (52-week highs/lows, 50d/200d crosses, golden/death crosses, MACD crosses, RSI extremes, volume surges): which look like real breakouts or breakdowns and which look like noise? Use volume and relative strength to judge.');
-  L.push('4. Which headlines matter for the setups, and what to verify before acting.');
-  L.push('5. A short list: best-looking long setups, names to avoid or trim, and 3-5 things to check on Bloomberg. Be concise, short bullets.');
+  L.push('3. Price structure: trend (uptrend / downtrend / sideways), the nearest support and resistance levels, and any chart patterns (double tops/bottoms, head and shoulders and inverse; forming vs confirmed neckline breaks, with measured targets). Which names are at a decision point (testing support or resistance)?');
+  L.push('4. The technical signals listed (breakouts/breakdowns through support or resistance, 52-week highs/lows, 50d/200d crosses, golden/death crosses, MACD crosses, RSI extremes, volume surges): which look like real breakouts or breakdowns and which look like noise? Use volume and relative strength to judge.');
+  L.push('5. Which headlines matter for the setups, and what to verify before acting.');
+  L.push('6. A short list: best-looking long setups (with entry near support or on a confirmed breakout, and where the idea is wrong), names to avoid or trim, and 3-5 things to check on Bloomberg. Be concise, short bullets.');
   L.push('','Notes: trend score 0-6 = one point each for above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, beating the S&P over 3 months. Vol x = today vs 20-day average volume. ATR = 14-day average true range as % of price. TradingView rating = TradingView\'s own technical summary (-1 strong sell to +1 strong buy), a second opinion: flag names where it disagrees with the trend score.');
   L.push('',freshness(),`S&P 500 reference: day ${f2(D.spx.pct)}%, 1M ${f2(D.spx.m1)}%, 3M ${f2(D.spx.m3)}%, YTD ${f2(D.spx.ytd)}%.`);
   T.groups.forEach(g=>{

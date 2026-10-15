@@ -1,0 +1,97 @@
+# MARKET DIRECTION: the major index, sector, bond, commodity and international ETFs that show the general
+# direction of each market and theme. Edit on GitHub (pencil icon) and save: the site rebuilds itself.
+@title Market Direction
+@description Index, style, sector, industry, bond, commodity and country ETFs: is the tide coming in or going out, and where is money rotating?
+@order 1
+
+[US Indices]
+SPY | S&P 500
+RSP | S&P 500 Equal Weight
+QQQ | Nasdaq-100
+QQQE | Nasdaq-100 Equal Weight
+DIA | Dow Jones Industrial Average
+IWM | Russell 2000 (small caps)
+MDY | S&P MidCap 400
+VTI | Total US Stock Market
+
+[Style & Factors]
+IWF | Russell 1000 Growth
+IWD | Russell 1000 Value
+MTUM | Momentum factor
+QUAL | Quality factor
+USMV | Minimum volatility
+SPHB | S&P 500 High Beta
+ARKK | ARK Innovation (speculative growth)
+
+[Sectors]
+XLK | Technology
+XLC | Communication Services
+XLY | Consumer Discretionary
+XLP | Consumer Staples
+XLV | Health Care
+XLF | Financials
+VFH | Vanguard Financials
+XLI | Industrials
+XLE | Energy
+XLU | Utilities
+XLRE | Real Estate
+XLB | Materials
+
+[Industries & Themes]
+SMH | Semiconductors (VanEck)
+SOXX | Semiconductors (iShares)
+IGV | Software
+XBI | Biotech (equal weight)
+IBB | Biotech (cap weight)
+KRE | Regional Banks
+XHB | Homebuilders
+ITA | Aerospace & Defense
+IYT | Transportation
+XRT | Retail
+XOP | Oil & Gas Exploration
+XME | Metals & Mining
+GDX | Gold Miners
+GDXJ | Junior Gold Miners
+COPX | Copper Miners
+URA | Uranium
+TAN | Solar
+GRID | Smart Grid Infrastructure
+BOTZ | Robotics & AI
+
+[Bonds & Credit]
+SHY | 1-3 Year Treasuries
+IEF | 7-10 Year Treasuries
+TLT | 20+ Year Treasuries
+TIP | Inflation-linked Treasuries
+LQD | Investment Grade Corporates
+HYG | High Yield Corporates
+EMB | Emerging Market Bonds
+
+[Commodities, Dollar & Crypto]
+GLD | Gold
+SLV | Silver
+USO | Crude Oil
+UNG | Natural Gas
+DBC | Broad Commodities
+DBA | Agriculture
+UUP | US Dollar
+IBIT | Bitcoin
+
+[International]
+ACWI | All Country World
+EFA | Developed ex-US
+VGK | Europe
+EWJ | Japan
+EWY | South Korea
+EWT | Taiwan
+FXI | China Large Caps
+MCHI | China (MSCI)
+KWEB | China Internet
+INDA | India
+EWZ | Brazil
+EEM | Emerging Markets
+
+[Volatility]
+^VIX | CBOE Volatility Index (VIX)
+
+# Only tickers here, never position sizes: this repository is public.

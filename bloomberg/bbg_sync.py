@@ -545,7 +545,7 @@ def screener_codes(gh, members):
             if not line or line.startswith(("[", "@")):
                 continue
             code = line.split("|")[0].strip()
-            if code:
+            if code and not code.startswith("^") and "." not in code:   # indices and Yahoo-only codes have no consensus
                 out.setdefault(yahoo_key(code), bbg_code(code))
     for f in ("spx.csv", "ndx.csv"):
         for t in members.get(f, []):

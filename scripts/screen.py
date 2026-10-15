@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import patterns  # noqa: E402   swing points, support / resistance, trend, chart patterns
+
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       "Accept": "text/csv,application/json,text/html;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"}
@@ -192,6 +195,13 @@ def analyse(bars, spx=None, now=None):
         add("rsi30", 1, f"RSI {r['rsi']:.0f} oversold")
     if vol_x is not None and vol_x >= 2 and r["pct"] is not None:
         add("vol", 1 if r["pct"] >= 0 else -1, f"Volume {vol_x:.1f}x average on a {r['pct']:+.1f}% day")
+    try:
+        fields, extra = patterns.structure(ts, list(highs), list(lows), closes, atr, m50, r["ma200"])
+        r.update(fields)
+        for k, d, t in extra:
+            add(k, d, t)
+    except Exception as e:  # noqa: BLE001   price structure is extra information: never lose the stock over it
+        r["struct_err"] = str(e)
     r["signals"] = sig
     return r
 
@@ -293,6 +303,8 @@ US_EXCH = {"NMS": "NASDAQ", "NGM": "NASDAQ", "NCM": "NASDAQ", "NAS": "NASDAQ", "
 
 
 def tv_symbol(ysym, exch_override="", yahoo_exch=""):
+    if ysym.startswith("^"):   # Yahoo index codes: TradingView has them without the caret (TVC:VIX)
+        ysym, exch_override = ysym[1:], exch_override or "TVC"
     if not exch_override and yahoo_exch in US_EXCH:
         exch_override = US_EXCH[yahoo_exch]
     for sfx in sorted(TV_EXCH, key=len, reverse=True):

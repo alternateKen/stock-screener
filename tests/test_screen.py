@@ -101,6 +101,7 @@ class Codes(unittest.TestCase):
         self.assertEqual(screen.tv_symbol("0700.HK"), "HKEX:700")
         self.assertEqual(screen.tv_symbol("BRK-B"), "BRK.B")
         self.assertEqual(screen.tv_symbol("SHOP", "NASDAQ"), "NASDAQ:SHOP")
+        self.assertEqual(screen.tv_symbol("^VIX"), "TVC:VIX")
         self.assertEqual(screen.tv_symbol("AAPL", "", "NMS"), "NASDAQ:AAPL")
         self.assertEqual(screen.tv_symbol("BRK-B", "", "NYQ"), "NYSE:BRK.B")
         self.assertEqual(screen.tv_symbol("2330.TW", "", "TAI"), "TWSE:2330")
