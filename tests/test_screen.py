@@ -87,6 +87,7 @@ class Codes(unittest.TestCase):
         self.assertEqual(screen.yahoo_candidates("600519 CH")[0], ["600519.SS"])
         self.assertEqual(screen.yahoo_candidates("300308 CH")[0], ["300308.SZ"])
         self.assertEqual(screen.yahoo_candidates("BA LN")[0], ["BA.L"])
+        self.assertEqual(screen.yahoo_candidates("BA/ LN")[0], ["BA.L"])
         self.assertEqual(screen.yahoo_candidates("RHM GY")[0], ["RHM.DE"])
         self.assertEqual(screen.yahoo_candidates("SU FP")[0], ["SU.PA"])
 

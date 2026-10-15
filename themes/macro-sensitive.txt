@@ -55,7 +55,7 @@ RTX | RTX
 NOC | Northrop Grumman
 GD | General Dynamics
 LHX | L3Harris
-BA LN | BAE Systems
+BA/ LN | BAE Systems
 RHM GY | Rheinmetall
 
 [Rate-Sensitive]
@@ -82,5 +82,5 @@ ALLY | Ally Financial
 SOFI | SoFi Technologies
 
 # Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
-# Bloomberg style codes work ("BA LN" = BAE Systems in London, "RHM GY" = Rheinmetall in Germany).
+# Bloomberg style codes work ("BA/ LN" = BAE Systems in London, "RHM GY" = Rheinmetall in Germany).
 # Only tickers here, never position sizes: this repository is public.

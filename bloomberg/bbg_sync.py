@@ -413,31 +413,88 @@ def fmt_eco(v):
     return f"{x:,.3f}".rstrip("0").rstrip(".")
 
 
+KEEP_TOP = {"dow.csv": 30, "spx.csv": 600, "ndx.csv": 110}   # US indices in full; others: the 100 largest (README: 60-100 is plenty)
+
+
+def norm_ticker(t):
+    """Bloomberg member code -> the style the dashboards read: Korean exchange codes KP / KQ -> KS (KOSPI / KOSDAQ both tried)."""
+    t = str(t).strip()
+    return re.sub(r"\s+(KP|KQ)$", " KS", t)
+
+
+def member_rows(rows):
+    """INDX_MWEIGHT rows -> [(ticker, weight)]. The weight is the column named like 'Percentage Weight'."""
+    out = []
+    for r in rows:
+        tick = next((v for k, v in r.items() if "ticker" in k.lower() or "member" in k.lower()), None)
+        wk = next((k for k in r if "percent" in k.lower()), None) or next((k for k in r if "weight" in k.lower()), None)
+        w = num(r.get(wk)) if wk else None
+        if tick:
+            out.append((norm_ticker(tick), w))
+    return out
+
+
 def weights(bbg):
-    """Exact index weights -> macro-updates weights/*.csv (read by the top-movers cards)."""
-    files, names_needed = {}, {}
+    """Index weights -> macro-updates weights/*.csv (read by the top-movers cards).
+    Official weights (INDX_MWEIGHT) when Bloomberg provides them; some index providers do not allow their weights to be
+    sent (they come back as zeros), and then the weights are computed from free-float market caps of the members."""
+    files, members = {}, {}
     d, errs = bbg.ref(list(WEIGHT_INDICES.values()), ["INDX_MWEIGHT"])
     for fname, idx in WEIGHT_INDICES.items():
-        rows = d.get(idx, {}).get("INDX_MWEIGHT") or []
-        mem = []
-        for r in rows:
-            tick = next((v for k, v in r.items() if "ticker" in k.lower() or "member" in k.lower()), None)
-            w = next((num(v) for k, v in r.items() if "weight" in k.lower()), None)
-            if tick and w:
-                mem.append((str(tick).strip(), w))
+        raw = d.get(idx, {}).get("INDX_MWEIGHT") or []
+        mem = member_rows(raw)
         if not mem:
-            say(f"  [!!]  Weights {idx}: none returned ({errs.get(idx) or errs.get(idx + '|INDX_MWEIGHT') or 'empty'})")
+            say(f"  [!!]  Weights {idx}: no members returned ({errs.get(idx) or errs.get(idx + '|INDX_MWEIGHT') or 'empty'})")
             continue
+        members[fname] = [t for t, _ in mem]
+        total = sum(w for _, w in mem if w and w > 0)
+        if 50 <= total <= 150:
+            method = "official index weights (INDX_MWEIGHT)"
+        else:
+            if raw:
+                log(f"{idx} INDX_MWEIGHT first row: {raw[0]}")
+            mem, method = cap_weights(bbg, [t for t, _ in mem], idx == "INDU Index")
+            if not mem:
+                say(f"  [!!]  Weights {idx}: official weights not provided and market caps unavailable")
+                continue
         mem.sort(key=lambda x: -x[1])
-        names_needed[fname] = mem
-    allm = sorted({t for mem in names_needed.values() for t, _ in mem})
+        keep = KEEP_TOP.get(fname, 100)
+        cover = sum(w for _, w in mem[:keep])
+        files[fname] = (mem[:keep], method, cover)
+    allm = sorted({t for mem, _, _ in files.values() for t, _ in mem})
     nm, _ = bbg.ref([t + " Equity" for t in allm], ["NAME"]) if allm else ({}, {})
-    for fname, mem in names_needed.items():
+    out = {}
+    for fname, (mem, method, cover) in files.items():
         rows = [[t, (nm.get(t + " Equity", {}).get("NAME") or t), f"{w:.4f}"] for t, w in mem]
-        files[f"weights/{fname}"] = csv_text([("source", f"Bloomberg API {WEIGHT_INDICES[fname]} INDX_MWEIGHT, automatic sync"),
-                                              ("asof", date.today().isoformat())], ["Ticker", "Name", "% Weight"], rows)
-        say(f"  [OK]  Weights {WEIGHT_INDICES[fname]}: {len(rows)} members, top {rows[0][0]} {float(rows[0][2]):.2f}%")
-    return files, {f: [t for t, _ in m] for f, m in names_needed.items()}
+        out[f"weights/{fname}"] = csv_text([("source", f"Bloomberg API {WEIGHT_INDICES[fname]}: {method}, automatic sync"),
+                                            ("asof", date.today().isoformat())], ["Ticker", "Name", "% Weight"], rows)
+        tag = "official" if method.startswith("official") else "free-float cap"
+        say(f"  [OK]  Weights {WEIGHT_INDICES[fname]} ({tag}): top {len(rows)} members = {cover:.0f}% of the index, "
+            f"largest {rows[0][0]} {float(rows[0][2]):.2f}%")
+    return out, members
+
+
+def cap_weights(bbg, tickers, price_weighted=False):
+    """Weights from Bloomberg data when official weights are not provided: free-float market cap share
+    (CUR_MKT_CAP x EQY_FREE_FLOAT_PCT), or the price share for a price-weighted index (the Dow)."""
+    fields = ["PX_LAST"] if price_weighted else ["CUR_MKT_CAP", "EQY_FREE_FLOAT_PCT"]
+    d, _ = bbg.ref([t + " Equity" for t in tickers], fields)
+    vals = []
+    for t in tickers:
+        v = d.get(t + " Equity", {})
+        if price_weighted:
+            x = num(v.get("PX_LAST"))
+        else:
+            cap, ff = num(v.get("CUR_MKT_CAP")), num(v.get("EQY_FREE_FLOAT_PCT"))
+            x = cap * (ff / 100 if ff and 0 < ff <= 100 else 1) if cap else None
+        if x and x > 0:
+            vals.append((t, x))
+    tot = sum(x for _, x in vals)
+    if not tot:
+        return [], ""
+    method = ("price-weighted share of member prices" if price_weighted
+              else "computed from free-float market caps (official weights not provided by the index licence)")
+    return [(t, x / tot * 100) for t, x in vals], method
 
 
 # ---------------- screener consensus ----------------
@@ -453,14 +510,14 @@ def yahoo_key(code):
     m = re.match(r"^(.+?)\s+([A-Z][A-Z0-9])$", code)
     if not m:
         return code.replace("/", "-").replace(" ", "")
-    base, cc = m.group(1).replace(" ", "").replace("/", "-"), m.group(2)
+    base, cc = m.group(1).replace(" ", "").rstrip("/").replace("/", "-"), m.group(2)
     if cc in US_SFX:
         return base
     if cc in ("CH", "C1", "C2"):
         return base + (".SS" if base.startswith("6") else ".SZ")
     if cc == "HK":
         base = base.lstrip("0").zfill(4)
-    rev = {"TT": ".TW", "HK": ".HK", "JP": ".T", "JT": ".T", "KS": ".KS", "KQ": ".KQ", "LN": ".L", "GY": ".DE", "GR": ".DE",
+    rev = {"TT": ".TW", "HK": ".HK", "JP": ".T", "JT": ".T", "KS": ".KS", "KQ": ".KQ", "KP": ".KS", "LN": ".L", "GY": ".DE", "GR": ".DE",
            "FP": ".PA", "NA": ".AS", "SW": ".SW", "SE": ".SW", "NO": ".OL", "AU": ".AX", "CN": ".TO", "IM": ".MI", "IT": ".MI",
            "SM": ".MC", "SS": ".ST", "DC": ".CO", "FH": ".HE", "IN": ".NS", "IS": ".NS", "SP": ".SI"}
     return base + rev.get(cc, "")

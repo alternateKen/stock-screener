@@ -275,7 +275,7 @@ def yahoo_candidates(code):
     m = re.match(r"^(.+?)\s+([A-Z]{2})$", code)
     if not m:
         return [code.replace("/", "-").replace(" ", "")], code
-    base, cc = m.group(1).replace(" ", "").replace("/", "-"), m.group(2)
+    base, cc = m.group(1).replace(" ", "").rstrip("/").replace("/", "-"), m.group(2)   # "BA/ LN" -> BA.L
     if cc in US_SUFFIX:
         return [base], base
     if cc in ("CH", "C1", "C2"):   # mainland China: 6xxxxx = Shanghai, otherwise Shenzhen

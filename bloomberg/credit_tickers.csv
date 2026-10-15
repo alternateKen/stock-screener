@@ -8,9 +8,9 @@ Americas,CDX Investment Grade,CDX IG CDSI GEN 5Y Corp,spread
 Americas,CDX High Yield,CDX HY CDSI GEN 5Y PRC Corp,price
 EMEA,iTraxx Europe,ITRX EUR CDSI GEN 5Y Corp,spread
 EMEA,iTraxx Crossover,ITRX XOVER CDSI GEN 5Y Corp,spread
-EMEA,iTraxx Sr Financial,ITRX FINSEN CDSI GEN 5Y Corp | ITRX SNRFIN CDSI GEN 5Y Corp | ITRX EUR SNRFIN CDSI GEN 5Y Corp,spread
-EMEA,iTraxx Sub Financial,ITRX SUBFIN CDSI GEN 5Y Corp | ITRX EUR SUBFIN CDSI GEN 5Y Corp | ITRX FINSUB CDSI GEN 5Y Corp,spread
+EMEA,iTraxx Sr Financial,SNRFIN CDSI GEN 5Y Corp | ITRX EUR SNRFIN CDSI GEN 5Y Corp,spread
+EMEA,iTraxx Sub Financial,SUBFIN CDSI GEN 5Y Corp | ITRX EUR SUBFIN CDSI GEN 5Y Corp,spread
 Asia,iTraxx Japan,ITRX JAPAN CDSI GEN 5Y Corp,spread
-Asia,iTraxx Asia Ex Japan IG,ITRX AXJ IG CDSI GEN 5Y Corp | ITRX XJ IG CDSI GEN 5Y Corp | ITRX ASIA IG CDSI GEN 5Y Corp,spread
+Asia,iTraxx Asia Ex Japan IG,ITRX EXJP IG CDSI GEN 5Y Corp,spread
 Asia,iTraxx Australia,ITRX AUS CDSI GEN 5Y Corp,spread
 Emerging Markets,CDX Emerging Market,CDX EM CDSI GEN 5Y PRC Corp,price
