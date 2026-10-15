@@ -213,7 +213,7 @@ def trend(closes, sw, ma50_series, ma200, adx, last):
             "why": ", ".join(why)}
 
 
-def structure(ts, highs, lows, closes, atr, ma50_series, ma200):
+def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None):
     """Everything above for one stock -> (fields for data.json, extra signals [(key, direction, text)])."""
     n = len(closes)
     if n < 60:
@@ -228,16 +228,24 @@ def structure(ts, highs, lows, closes, atr, ma50_series, ma200):
     atr_pct = atr / last * 100 if atr and last else None
     pats = find_patterns(closes, sw, atr_pct)
     sig = []
-    # breakouts: today's close beyond a level (touched twice or more) that held before the last 3 sessions
+    # breakouts: a close at least 1% through the nearest level (touched twice or more) within the last 3 sessions,
+    # confirmed by volume: one of those sessions traded at least 1.3x its 20-day average (skipped if no volume data)
+    vx = None
+    if vols and len(vols) >= 24:
+        ratios = []
+        for i in range(n - 3, n):
+            base = sum(vols[i - 20:i]) / 20
+            ratios.append(vols[i] / base if base else 0)
+        vx = max(ratios)
+    vol_ok = vx is None or vx >= 1.3
+    vtxt = f" on {vx:.1f}x volume" if vx is not None else ""
     old_sup, old_res = levels([s for s in recent if s[0] <= n - 4], closes[-4], atr)
-    for lv in old_res:
-        if lv["n"] >= 2 and closes[-4] <= lv["p"] and last > lv["p"] * (1 + BREAK) and min(closes[-3:]) <= lv["p"] * 1.03:
-            sig.append(("brku", 1, f"Breakout above resistance {lv['p']:.4g}"))
-            break
-    for lv in old_sup:
-        if lv["n"] >= 2 and closes[-4] >= lv["p"] and last < lv["p"] * (1 - BREAK) and max(closes[-3:]) >= lv["p"] * 0.97:
-            sig.append(("brkd", -1, f"Breakdown below support {lv['p']:.4g}"))
-            break
+    lv = old_res[0] if old_res else None
+    if vol_ok and lv and lv["n"] >= 2 and closes[-4] <= lv["p"] and last > lv["p"] * (1 + BREAK) and min(closes[-3:]) <= lv["p"] * 1.03:
+        sig.append(("brku", 1, f"Breakout above resistance {lv['p']:.4g}{vtxt}"))
+    lv = old_sup[0] if old_sup else None
+    if vol_ok and lv and lv["n"] >= 2 and closes[-4] >= lv["p"] and last < lv["p"] * (1 - BREAK) and max(closes[-3:]) >= lv["p"] * 0.97:
+        sig.append(("brkd", -1, f"Breakdown below support {lv['p']:.4g}{vtxt}"))
     for p in pats:
         word = "confirmed" if p["state"] == "confirmed" else "forming"
         sig.append((p["k"], p["d"], f"{p['name']} {word} (neckline {p['neck']:.4g}, target {p['target']:.4g})"))

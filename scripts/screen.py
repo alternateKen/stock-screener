@@ -196,7 +196,7 @@ def analyse(bars, spx=None, now=None):
     if vol_x is not None and vol_x >= 2 and r["pct"] is not None:
         add("vol", 1 if r["pct"] >= 0 else -1, f"Volume {vol_x:.1f}x average on a {r['pct']:+.1f}% day")
     try:
-        fields, extra = patterns.structure(ts, list(highs), list(lows), closes, atr, m50, r["ma200"])
+        fields, extra = patterns.structure(ts, list(highs), list(lows), closes, atr, m50, r["ma200"], vols)
         r.update(fields)
         for k, d, t in extra:
             add(k, d, t)

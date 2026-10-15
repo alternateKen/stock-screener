@@ -55,7 +55,7 @@ SHOP | Shopify | NASDAQ             <- optional 3rd column: TradingView exchange
   - Double top / bottom: two peaks or troughs within 3% of each other, at least 15 days apart, with a dip between them of at least 5% (or 3× ATR, whichever is larger).
   - Head and shoulders, and its inverse: a head at least 3% beyond two roughly level shoulders, with the neckline drawn through the two troughs.
   - Each needs a prior move to reverse. It is "forming" until the close breaks the neckline by 1%, then "confirmed" (shown for 15 sessions), with a measured target (the pattern's height projected from the neckline).
-- **Breakout / breakdown:** the close moved at least 1% through a level touched twice or more, within the last 3 sessions.
+- **Breakout / breakdown:** the close moved at least 1% through the nearest level (touched twice or more) within the last 3 sessions, on at least 1.3× the 20-day average volume.
 - The chart page draws all of these on the candles: S1/S2 and R1/R2 lines, the pattern's peaks and troughs, the neckline, and the target.
 
 **Trend score (0–6):** one point each for price above its 50-day average, above its 200-day average, 50-day above 200-day, MACD above its signal line, RSI above 50, and beating the S&P 500 over 3 months.

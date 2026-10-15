@@ -19,13 +19,13 @@ def ohlc(c):
     return [x * 1.006 for x in c], [x * 0.994 for x in c]
 
 
-def run(c):
+def run(c, vols=None):
     h, l = ohlc(c)
     ts = [1_700_000_000 + i * 86400 for i in range(len(c))]
     atr = screen.atr14(h, l, c)
     m50 = screen.sma_series(c, 50)
     m200 = screen.sma_series(c, 200)[-1]
-    return P.structure(ts, h, l, c, atr, m50, m200)
+    return P.structure(ts, h, l, c, atr, m50, m200, vols)
 
 
 class Patterns(unittest.TestCase):
@@ -86,6 +86,10 @@ class Patterns(unittest.TestCase):
         c = path([(0, 100), (20, 110), (40, 95), (60, 110), (80, 95), (100, 110), (120, 96), (138, 109), (141, 114)])
         _, _, sig = self.kinds(c)
         self.assertTrue(any(s[0] == "brku" for s in sig), sig)
+        quiet = [1000] * len(c)
+        loud = quiet[:-1] + [2000]
+        self.assertFalse(any(s[0] == "brku" for s in run(c, quiet)[1]))     # no volume: not confirmed
+        self.assertTrue(any(s[0] == "brku" and "2.0x volume" in s[2] for s in run(c, loud)[1]))
 
     def test_adx(self):
         c = path([(0, 50), (100, 150)], noise=0.001)
