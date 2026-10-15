@@ -121,6 +121,5 @@
 1303 TT | Nan Ya Plastics
 1326 TT | Formosa Chemicals & Fibre
 6505 TT | Formosa Petrochemical
-PTTGC TB | PTT Global Chemical
 
 # Only tickers here, never position sizes: this repository is public.

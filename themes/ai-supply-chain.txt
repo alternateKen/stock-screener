@@ -113,7 +113,7 @@ CCJ | Cameco
 OKLO | Oklo
 BE | Bloom Energy
 034020 KP | Doosan Enerbility
-U96.SI | Sembcorp Industries
+U96.SI | Sembcorp Industries (Singapore)
 
 [Hyperscalers & Neoclouds]
 MSFT | Microsoft

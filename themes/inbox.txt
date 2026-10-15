@@ -11,7 +11,3 @@
 @order 90
 
 [Unsorted]
-# From the Japan watchlist ("Unclassified"): Yahoo has no data for 6300 and too little history for 5660
-# (new listings?). Check the codes on Bloomberg; they'll be sorted once they trade on Yahoo.
-6300 JP
-5660 JT

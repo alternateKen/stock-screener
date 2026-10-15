@@ -37,6 +37,7 @@ OXY | Occidental Petroleum
 COP | ConocoPhillips
 HAL | Halliburton
 SLB | SLB
+PTTGC TB | PTT Global Chemical (Thailand)
 
 [Metals & Miners]
 GDX | VanEck Gold Miners ETF
@@ -47,7 +48,7 @@ FCX | Freeport-McMoRan
 SCCO | Southern Copper
 NUE | Nucor
 AA | Alcoa
-LYC AU | Lynas Rare Earths
+LYC AU | Lynas Rare Earths (Australia)
 
 [Defense]
 ITA | iShares Aerospace & Defense ETF
