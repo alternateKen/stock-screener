@@ -744,6 +744,16 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
           f"{len(stocks)} stocks with data, {missing} without, {nsig} signals")
     for e in errors:
         print("WARN", e)
+    trends = {}
+    for st_ in stocks.values():
+        d = (st_.get("trend") or {}).get("dir")
+        trends[d] = trends.get(d, 0) + 1
+    pats = [f"{p['name']} {p['state']}" for st_ in stocks.values() for p in st_.get("pat", [])]
+    serr = [k for k, st_ in stocks.items() if st_.get("struct_err")]
+    print(f"price structure: trends {trends}; {len(pats)} chart patterns "
+          f"({', '.join(f'{x} {pats.count(x)}' for x in sorted(set(pats)))}); "
+          f"{sum(1 for st_ in stocks.values() for sg in st_['signals'] if sg['k'] in ('brku', 'brkd'))} breakouts/breakdowns"
+          + (f"; structure errors for {len(serr)}: {', '.join(serr[:5])}" if serr else ""))
     if named:   # tickers added without a company name: shown here so they can be named in the theme file if wanted
         print(f"named from Yahoo ({len(named)}): " + "; ".join(f"{k} = {v}" for k, v in sorted(named.items())))
     return data
