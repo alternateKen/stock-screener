@@ -8,6 +8,7 @@
 005930 KP | Samsung Electronics
 000660 KP | SK hynix
 440110 KQ | FADU
+SKHY | SK hynix (US ADR)
 
 [Semiconductor Equipment & Test]
 042700 KP | HANMI Semiconductor

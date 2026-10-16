@@ -51,6 +51,8 @@
 2513 HK | Z.ai (Zhipu)
 9698 HK | GDS
 3896 HK | Kingsoft Cloud
+BABA | Alibaba (US ADR)
+TCEHY | Tencent (US ADR)
 
 [Robotics & Autonomy]
 9880 HK | Ubtech Robotics
