@@ -146,6 +146,7 @@ def analyse(bars, spx=None, now=None):
         "last": last, "prev": prev, "pct": pct(last, prev), "w1": pct(last, ago(5)), "m1": pct(last, ago(21)),
         "m3": pct(last, ago(63)), "ytd": pct(last, ytd_base),
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
+        "ma100": sma_series(closes, 100)[-1], "ema10": ema_series(closes, 10)[-1], "ema21": ema_series(closes, 21)[-1],
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
         "atr_pct": atr / last * 100 if atr and last else None, "vol_x": vol_x,
         "off_hi": pct(last, max(yr)),

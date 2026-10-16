@@ -14,7 +14,9 @@ const f2=(v,x=2)=>v==null?'n/a':v.toFixed(x);
 // signal types: key -> [short label for filter chips, bullish?]
 const SIGNALS={hi52:['52w high',1],lo52:['52w low',-1],x200u:['Above 200d',1],x200d:['Below 200d',-1],x50u:['Above 50d',1],x50d:['Below 50d',-1],
   golden:['Golden cross',1],death:['Death cross',-1],macdu:['MACD up',1],macdd:['MACD down',-1],rsi70:['RSI ≥ 70',-1],rsi30:['RSI ≤ 30',1],vol:['Volume surge',0],
-  brku:['Breakout',1],brkd:['Breakdown',-1],dbot:['Double bottom',1],ihs:['Inverse H&S',1],dtop:['Double top',-1],hs:['Head & shoulders',-1]};
+  brku:['Breakout',1],brkd:['Breakdown',-1],dbot:['Double bottom',1],ihs:['Inverse H&S',1],cup:['Cup & handle',1],rbot:['Rounding bottom',1],
+  tria:['Ascending triangle',1],wedf:['Falling wedge',1],flagu:['Bull flag / pennant',1],tris:['Symmetrical triangle',0],
+  dtop:['Double top',-1],hs:['Head & shoulders',-1],trid:['Descending triangle',-1],wedr:['Rising wedge',-1],flagd:['Bear flag / pennant',-1]};
 const TREND_ORDER={up:1,side:0,down:-1};
 // trend from price structure (higher highs / lows), the 50/200-day averages and ADX (scripts/patterns.py)
 function trendCell(r){
@@ -30,7 +32,8 @@ function srCell(r){
   const tip=['Support: '+(s.sup||[]).map(x=>fmt(x.p,2)+' ('+x.n+' touches)').join(', '),'Resistance: '+((s.res||[]).map(x=>fmt(x.p,2)+' ('+x.n+' touches)').join(', ')||'none: at or near highs')].join(' · ');
   return `<span title="${esc(tip)}" style="white-space:nowrap">${one((s.sup||[])[0],'S')}<br>${(s.res||[]).length?one(s.res[0],'R'):'<span class="mu">R none (at highs)</span>'}</span>`;
 }
-function patText(r){return (r.pat||[]).map(p=>`${p.name} ${p.state} (neckline ${fmt(p.neck,2)}, target ${fmt(p.target,2)})`).join('; ')}
+const lvlWord=p=>['dtop','dbot','hs','ihs'].includes(p.k)?'neckline':'breakout level';
+function patText(r){return (r.pat||[]).map(p=>`${p.name} ${p.state} (${lvlWord(p)} ${fmt(p.neck,2)}, target ${fmt(p.target,2)})`).join('; ')}
 const TREND_COL=['trend','Trend',r=>`<td class="hide-sm" style="text-align:left">${trendCell(r)}</td>`,r=>r.trend?r.trend.score:null,1];
 const SR_COL=['sr','Support / Resistance',r=>`<td class="hide-sm" style="text-align:left;font-size:12px">${srCell(r)}</td>`,r=>r.sr&&r.sr.sup&&r.sr.sup[0]?lvPct(r.sr.sup[0].p,r.last):null,1];
 
@@ -67,7 +70,7 @@ const chartLink=(r,txt)=>`<a class="stk" href="${chartUrl(r.k)}" onclick="event.
 function rsiGauge(v){return `<span class="rsi"><b style="left:${Math.max(0,Math.min(100,v))}%"></b></span>`}
 function maPill(r){
   const p=(v,l)=>v==null?'':`<span class="pill ${r.last>v?'up':'dn'}">${r.last>v?'▲':'▼'} ${l}</span>`;
-  return p(r.ma50,'50d')+p(r.ma200,'200d');
+  return p(r.ema10,'10e')+p(r.ema21,'21e')+p(r.ma50,'50')+p(r.ma100,'100')+p(r.ma200,'200');
 }
 // breadth and averages over a list of stock rows (each a data.json stock merged with its list item)
 function stats(rows){
@@ -84,7 +87,7 @@ function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];ret
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | ${r.ma50==null?'':(r.last>r.ma50?'above':'below')+' 50d'} ${r.ma200==null?'':(r.last>r.ma200?'above':'below')+' 200d'} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | vs EMA10/EMA21/MA50/MA100/MA200: ${[r.ema10,r.ema21,r.ma50,r.ma100,r.ma200].map(v=>v==null?'n/a':(r.last>v?'above':'below')).join('/')} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>

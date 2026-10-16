@@ -1,11 +1,14 @@
 """Price-structure analysis for the screener: swing points, support / resistance, trend, ADX and classic chart
-patterns (double top / bottom, head and shoulders and its inverse). Pure Python, daily bars.
+patterns (double top / bottom, head and shoulders and its inverse; triangles, wedges, flags, pennants, rounding
+bottoms and cup and handle live in shapes.py). Pure Python, daily bars.
 
 Conventions: indices refer to the bar lists passed in (oldest first); "confirmed" means the close has broken the
 pattern's neckline, "forming" means the pattern is in place but the neckline has not been broken yet."""
 
 SWING_K = 5            # a swing high is the highest high of the 5 bars either side (a "fractal" pivot)
 LOOKBACK = 250         # about a year of bars for levels and patterns
+import shapes
+
 RECENT = 15            # a neckline break must be this recent (bars) to be reported as "confirmed"
 FORMING = 30           # a pattern's last peak / trough must be this recent to be reported as "forming"
 BREAK = 0.01           # a close must clear the neckline by 1% to count as a break
@@ -227,6 +230,10 @@ def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None):
     tr = trend(closes, sw, ma50_series, ma200, adx, last)
     atr_pct = atr / last * 100 if atr and last else None
     pats = find_patterns(closes, sw, atr_pct)
+    try:
+        pats += shapes.find_shapes(highs, lows, closes, sw, atr)
+    except Exception:  # noqa: BLE001   one odd series must not lose the classic patterns
+        pass
     sig = []
     # breakouts: a close at least 1% through the nearest level (touched twice or more) within the last 3 sessions,
     # confirmed by volume: one of those sessions traded at least 1.3x its 20-day average (skipped if no volume data)
@@ -248,13 +255,15 @@ def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None):
         sig.append(("brkd", -1, f"Breakdown below support {lv['p']:.4g}{vtxt}"))
     for p in pats:
         word = "confirmed" if p["state"] == "confirmed" else "forming"
-        sig.append((p["k"], p["d"], f"{p['name']} {word} (neckline {p['neck']:.4g}, target {p['target']:.4g})"))
+        lvl = "neckline" if p["k"] in ("dtop", "dbot", "hs", "ihs") else "breakout level"
+        sig.append((p["k"], p["d"], f"{p['name']} {word} ({lvl} {p['neck']:.4g}, target {p['target']:.4g})"))
     fields = {
         "trend": tr,
         "sr": {"sup": [{"p": round(x["p"], 4), "n": x["n"]} for x in sup],
                "res": [{"p": round(x["p"], 4), "n": x["n"]} for x in res]},
         "pat": [{"k": p["k"], "name": p["name"], "state": p["state"], "d": p["d"], "neck": round(p["neck"], 4),
                  "target": round(p["target"], 4), "pts": [[day(i), round(v, 4)] for i, v in p["pts"]],
-                 "neck_pts": [[day(i), round(v, 4)] for i, v in p["neck_pts"]]} for p in pats],
+                 "neck_pts": [[day(i), round(v, 4)] for i, v in p["neck_pts"]],
+                 "lines": [[[day(i), round(v, 4)] for i, v in ln] for ln in p.get("lines", [])]} for p in pats],
     }
     return fields, sig

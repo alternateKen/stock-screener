@@ -59,6 +59,7 @@ GD | General Dynamics
 LHX | L3Harris
 BA/ LN | BAE Systems
 RHM GY | Rheinmetall
+SPCX | SpaceX (Space Exploration Technologies)
 
 [Rate-Sensitive]
 TLT | iShares 20+ Year Treasury ETF

@@ -68,7 +68,7 @@ class Signals(unittest.TestCase):
             c.append(c[-1] * (1 + random.gauss(0.001, 0.02)))
         r = screen.analyse(bars(c), {"m1": 1, "m3": 2})
         self.assertTrue(0 <= r["score"] <= 6)
-        for k in ("pct", "w1", "m1", "m3", "ytd", "rsi", "macd", "atr_pct", "vol_x", "rs1", "rs3"):
+        for k in ("pct", "w1", "m1", "m3", "ytd", "rsi", "macd", "atr_pct", "vol_x", "rs1", "rs3", "ema10", "ema21", "ma100"):
             self.assertIsNotNone(r[k], k)
             self.assertFalse(math.isnan(r[k]), k)
 

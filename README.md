@@ -51,10 +51,14 @@ SHOP | Shopify | NASDAQ             <- optional 3rd column: TradingView exchange
 **Price structure** (`scripts/patterns.py`):
 - **Trend:** uptrend, downtrend or sideways. Each of these adds or subtracts a point: higher or lower swing highs; higher or lower swing lows; price above or below the 50-day average; the 50-day average rising or falling; and the 50-day above or below the 200-day. "Strong" means ADX is above 25. "Range-bound" means sideways with ADX below 20.
 - **Support / resistance:** turning points (swing highs and lows) from the past year are grouped into price bands about one ATR wide. A level's strength is the number of times price turned there. The two nearest levels below and above the price are shown, ranked by distance and touches, within 30% of the price.
-- **Chart patterns:**
-  - Double top / bottom: two peaks or troughs within 3% of each other, at least 15 days apart, with a dip between them of at least 5% (or 3× ATR, whichever is larger).
-  - Head and shoulders, and its inverse: a head at least 3% beyond two roughly level shoulders, with the neckline drawn through the two troughs.
-  - Each needs a prior move to reverse. It is "forming" until the close breaks the neckline by 1%, then "confirmed" (shown for 15 sessions), with a measured target (the pattern's height projected from the neckline).
+- **Moving averages:** EMA 10 and EMA 21 (short term), MA 50, MA 100 and MA 200. The tables show price above or below each; the chart draws all five (MA 100 starts switched off).
+- **Chart patterns** (each "forming" until the close breaks its neckline / breakout level by 1%, then "confirmed" for 15 sessions, always with a measured target):
+  - **Double top / bottom:** two peaks or troughs within 3%, at least 15 days apart, with a dip of at least 5% (or 3× ATR) between them, after a prior move.
+  - **Head and shoulders / inverse:** a head at least 3% beyond two roughly level, roughly balanced shoulders; neckline through the two troughs.
+  - **Ascending / descending / symmetrical triangle, rising / falling wedge:** least-squares trendlines through at least 2 recent swing highs and 2 swing lows (15–120 bars, last touch within 25 bars). Every touch must sit within ~0.6 ATR of its line, the closes must stay inside the lines, and the lines must converge by at least 25%. Flat top + rising bottom = ascending; falling top + flat bottom = descending; falling top + rising bottom = symmetrical; both rising and converging = rising wedge (bearish); both falling and converging = falling wedge (bullish). Confirmed breaks say which way they broke.
+  - **Bull / bear flag and pennant:** a pole of at least 10% and 5× ATR in at most 12 bars (ending 4–20 bars ago), then a tight pause retracing less than 40% of the pole. A converging pause is a pennant; a parallel one drifting against the pole is a flag. The target is the pole's length added to the breakout.
+  - **Cup and handle:** after an advance of at least 15%, two rims within 5% and a U-shaped cup 30–250 bars wide and 12–50% deep (parabola fit, R² ≥ 0.7, bottom in the middle), then a 3–30 bar handle staying in the cup's upper third. The breakout is the rim.
+  - **Rounding bottom:** a U-shaped base over 60–200 bars (R² ≥ 0.7, low point in the middle half, at least 12% deep) whose right side has recovered at least 60%. The breakout is the left rim.
 - **Breakout / breakdown:** the close moved at least 1% through the nearest level (touched twice or more) within the last 3 sessions, on at least 1.3× the 20-day average volume.
 - The chart page draws all of these on the candles: S1/S2 and R1/R2 lines, the pattern's peaks and troughs, the neckline, and the target.
 
