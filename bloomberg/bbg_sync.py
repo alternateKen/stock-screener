@@ -558,7 +558,8 @@ def consensus(bbg, gh, members):
     rating Buy, consensus rating 1-5, number of analysts, and the 4-week change in the next-12-month EPS estimate."""
     codes = screener_codes(gh, members)
     secs = sorted(set(codes.values()))
-    d, errs = bbg.ref(secs, ["PX_LAST", "BEST_TARGET_PRICE", "BEST_ANALYST_RATING", "TOT_ANALYST_REC", "TOT_BUY_REC"])
+    d, errs = bbg.ref(secs, ["PX_LAST", "BEST_TARGET_PRICE", "BEST_ANALYST_RATING", "TOT_ANALYST_REC", "TOT_BUY_REC",
+                             "MOV_AVG_50D", "MOV_AVG_200D"])
     h, _ = bbg.hist(secs, ["BEST_EPS"], date.today() - timedelta(days=35), overrides={"BEST_FPERIOD_OVERRIDE": "BF"})
     out, have = {}, 0
     for key, sec in codes.items():
@@ -578,6 +579,11 @@ def consensus(bbg, gh, members):
                 rec["buy"] = round(buy / n * 100)
         if rt:
             rec["rt"] = round(rt, 2)
+        # data check: Bloomberg's own 50 / 200-day averages, compared with the screener's (Yahoo-based) ones
+        for f, key in (("MOV_AVG_50D", "bma50"), ("MOV_AVG_200D", "bma200")):
+            x = num(v.get(f))
+            if x:
+                rec[key] = float(f"{x:.6g}")
         if len(eps) >= 15 and eps[0]:
             rec["rev4w"] = round((eps[-1] / eps[0] - 1) * 100 * (1 if eps[0] > 0 else -1), 1)
         if rec:
@@ -597,7 +603,8 @@ def consensus(bbg, gh, members):
         return {}
     payload = {"asof": datetime.now().astimezone().isoformat(timespec="minutes"),
                "note": "Derived from Bloomberg consensus: up = % upside to consensus target, buy = % of analysts rating Buy, "
-                       "rt = consensus rating (1 sell .. 5 buy), n = analysts, rev4w = % change in the next-12-month EPS estimate over 4 weeks",
+                       "rt = consensus rating (1 sell .. 5 buy), n = analysts, rev4w = % change in the next-12-month EPS estimate over 4 weeks; "
+                       "bma50 / bma200 = Bloomberg's 50 / 200-day moving averages, used to cross-check the screener's data",
                "stocks": out}
     return {"data/bloomberg_consensus.json": json.dumps(payload, separators=(",", ":"), sort_keys=True)}
 

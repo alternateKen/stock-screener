@@ -248,9 +248,15 @@ def yahoo_bars(symbol):
         raise ValueError("not enough price history")
     reg = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
     tm = meta.get("regularMarketTime", rows[-1][0])
+    live, live_bad = meta.get("regularMarketPrice"), None
+    # Yahoo keeps stale duplicate listings (e.g. a KOSDAQ stock also under .KS) whose "live" price is frozen: a live
+    # price older than the last bar, or more than 15% away from it, is not used (the last bar's close stands)
+    if live is not None and (tm < rows[-1][0] or abs(live / rows[-1][1] - 1) > 0.15):
+        live, live_bad = None, live
+        tm = rows[-1][0]
     return {"t": [r[0] for r in rows], "c": [r[1] for r in rows], "h": [r[2] for r in rows], "l": [r[3] for r in rows],
             "v": [r[4] or 0 for r in rows], "o": [r[5] if r[5] is not None else r[1] for r in rows],
-            "last": meta.get("regularMarketPrice"), "time": tm,
+            "last": live, "live_bad": live_bad, "time": tm,
             "currency": meta.get("currency"), "exch": meta.get("exchangeName"),
             "name": meta.get("longName") or meta.get("shortName"), "intraday": bool(reg) and reg.get("start", 0) <= tm < reg.get("end", 0)}
 
@@ -591,12 +597,30 @@ def load_consensus(stocks, errors, path=None):
     except Exception as e:  # noqa: BLE001
         errors.append(f"Bloomberg consensus file unreadable: {e}")
         return None
-    n = 0
+    n, checked, off = 0, 0, []
     for k, rec in (c.get("stocks") or {}).items():
         if k in stocks:
-            stocks[k]["st"] = rec
+            st = stocks[k]
+            st["st"] = rec
             n += 1
+            # cross-check against Bloomberg's own moving averages: more than 3% apart means the price history differs
+            # (wrong listing, missing or unadjusted data) and the stock's signals should not be trusted
+            diffs = []
+            for ours, theirs, lab in (("ma50", "bma50", "50-day"), ("ma200", "bma200", "200-day")):
+                if st.get(ours) and rec.get(theirs):
+                    checked += lab == "200-day"
+                    dv = (st[ours] / rec[theirs] - 1) * 100
+                    if abs(dv) > 3:
+                        diffs.append(f"{lab} average {st[ours]:.4g} vs Bloomberg {rec[theirs]:.4g} ({dv:+.1f}%)")
+            if diffs:
+                st["dq"] = "Data differs from Bloomberg: " + "; ".join(diffs)
+                off.append(k)
     print(f"Bloomberg consensus for {n} stocks (as of {c.get('asof')})")
+    if checked:
+        print(f"data check vs Bloomberg moving averages: {checked} stocks compared, {len(off)} differ by more than 3%"
+              + (f": {', '.join(off[:30])}" if off else ""))
+        if off:
+            errors.append(f"{len(off)} stocks' moving averages differ from Bloomberg's by more than 3% (flagged ⚠ on the pages): {', '.join(off[:30])}")
     return c.get("asof")
 
 
@@ -634,15 +658,25 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     idx_syms = {tuple(g["index"]) for g in universe["groups"] if g["index"]} | {("^GSPC",)}
 
     def one(k):
-        last = None
+        """Codes that can live on two exchanges (Taiwan TWSE / TPEx, Korea KOSPI / KOSDAQ) are fetched on both and the
+        genuine listing wins: a live price that agrees with its own closes, then the most recent last bar."""
+        last, got = None, []
         for c in jobs[k]["cands"]:
             try:
                 b = fetch(c)
                 b["ysym"] = c
-                return k, b, None
+                got.append(b)
+                if len(jobs[k]["cands"]) == 1:
+                    break
             except Exception as e:  # noqa: BLE001
                 last = e
-        return k, None, f"{k}: {last}"
+        if not got:
+            return k, None, f"{k}: {last}"
+        best = max(got, key=lambda b: (b.get("live_bad") is None, b["t"][-1]))
+        if best is not got[0]:   # only worth a log line when the first exchange tried was the wrong one
+            other = [b["ysym"] for b in got if b is not best]
+            print(f"  {k}: listed under {', '.join(b['ysym'] for b in got)}; using {best['ysym']} (skipped {', '.join(other)})")
+        return k, best, None
 
     def one_news(k):
         try:

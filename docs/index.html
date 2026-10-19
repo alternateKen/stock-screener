@@ -70,8 +70,8 @@ function signalsPanel(){
   const count=k=>U.filter(r=>(r.signals||[]).some(s=>s.k===k)).length;
   const chips=Object.entries(SIGNALS).map(([k,[l,d]])=>`<span class="chip ${d>0?'up':d<0?'dn':''}">${esc(l)}: <b>${count(k)}</b></span>`).join('');
   const strength=r=>(r.signals||[]).reduce((p,s)=>p+s.d,0);
-  const bulls=U.filter(r=>strength(r)>=2).sort((a,b)=>strength(b)-strength(a)||(b.rs3||0)-(a.rs3||0)).slice(0,8);
-  const bears=U.filter(r=>strength(r)<=-2).sort((a,b)=>strength(a)-strength(b)||(a.rs3||0)-(b.rs3||0)).slice(0,8);
+  const bulls=U.filter(r=>!r.dq&&strength(r)>=2).sort((a,b)=>strength(b)-strength(a)||(b.rs3||0)-(a.rs3||0)).slice(0,8);
+  const bears=U.filter(r=>!r.dq&&strength(r)<=-2).sort((a,b)=>strength(a)-strength(b)||(a.rs3||0)-(b.rs3||0)).slice(0,8);
   const li=r=>`<div style="padding:3px 0"><b>${chartLink(r,esc(r.sym))}</b> <span class="mu" style="font-size:11px">${esc(r.label)} · ${esc(r.sector||r.uni)}</span><br>${sigChips(r,4)}</div>`;
   return `<section id="signals"><h2>Broad screen · ${U.length} stocks</h2>
     <div class="movers" style="margin-top:0">${cards}</div>

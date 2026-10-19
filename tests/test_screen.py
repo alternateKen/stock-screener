@@ -156,14 +156,35 @@ class MemberSources(unittest.TestCase):
         self.assertEqual(u["groups"][0]["items"][0]["sector"], "Energy")   # borrowed from the S&P 500 group
 
 
+class ListingChoice(unittest.TestCase):
+    def test_stale_duplicate_listing_is_skipped(self):
+        def fake(sym):
+            closes = [100.0 + i * 0.1 for i in range(260)]
+            b = bars(closes)
+            if sym.endswith(".KS"):           # stale duplicate: one bar behind and a frozen live price
+                b = bars(closes[:-1])
+                b["last"], b["live_bad"] = None, 180.0
+            b["ysym"] = sym
+            return b
+        with tempfile.TemporaryDirectory() as d:
+            orig = screen.ROOT
+            data = screen.build(d, fetch=fake, fetch_news=lambda s: [], load_universe=False, fetch_tv=lambda s: {})
+        self.assertEqual(data["stocks"]["000660.KS"]["ysym"], "000660.KQ")
+
+
 class Consensus(unittest.TestCase):
     def test_merge(self):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "c.json")
             with open(p, "w") as fh:
                 json.dump({"asof": "2026-10-15T08:30+08:00", "stocks": {"NVDA": {"up": 12.5, "buy": 90, "n": 60, "rt": 4.7, "rev4w": 3.1}}}, fh)
-            stocks, errors = {"NVDA": {}, "AAPL": {}}, []
+            stocks, errors = {"NVDA": {"ma50": 100.0, "ma200": 80.0}, "AAPL": {}}, []
+            with open(p, "w") as fh:
+                json.dump({"asof": "2026-10-15T08:30+08:00", "stocks": {"NVDA": {"up": 12.5, "buy": 90, "n": 60, "rt": 4.7, "rev4w": 3.1,
+                                                                                  "bma50": 101.0, "bma200": 90.0}}}, fh)
             self.assertEqual(screen.load_consensus(stocks, errors, p), "2026-10-15T08:30+08:00")
+            self.assertIn("200-day", stocks["NVDA"]["dq"])        # 80 vs 90 is flagged
+            self.assertNotIn("50-day", stocks["NVDA"]["dq"])      # 100 vs 101 is fine
             self.assertEqual(stocks["NVDA"]["st"]["up"], 12.5)
             self.assertNotIn("st", stocks["AAPL"])
 

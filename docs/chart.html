@@ -131,7 +131,7 @@ function setRange(r){
 function statsHTML(){
   const r=R,rp=rangePos(r),f=v=>v==null?'–':fmt(v,2);
   const box=(l,v,c='')=>`<div class="stat"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`;
-  return `<div class="stats">
+  return (r.dq?`<div class="banner" style="display:block;margin:0 0 10px">⚠ ${esc(r.dq)}. The price history used here does not match Bloomberg's, so these signals may be wrong.</div>`:'')+`<div class="stats">
     ${box('Last · day',`${f(r.last)} <span class="${cls(r.pct)}" style="font-size:13px">${pc(r.pct,2)}</span>`)}
     ${box('1M · 3M · YTD',`<span class="${cls(r.m1)}">${pc(r.m1)}</span> · <span class="${cls(r.m3)}">${pc(r.m3)}</span> · <span class="${cls(r.ytd)}">${pc(r.ytd)}</span>`)}
     ${box('vs S&amp;P 1M · 3M',`<span class="${cls(r.rs1)}">${pts(r.rs1)}</span> · <span class="${cls(r.rs3)}">${pts(r.rs3)}</span>`)}
