@@ -1,0 +1,28 @@
+name: Inspect tickers
+
+# Actions tab -> "Inspect tickers" -> Run workflow, type tickers separated by commas (Bloomberg-style codes work).
+# Prints the raw Yahoo data, moving averages and signals for each, to cross-check against Bloomberg.
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers, comma separated (e.g. 247540 KS, NVDA, 0700 HK)"
+        required: true
+        default: "247540 KS"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inspect
+        env:
+          TICKERS: ${{ inputs.tickers }}
+        run: python -c "import os,sys; sys.path.insert(0,'scripts'); sys.argv=['x']+[t.strip() for t in os.environ['TICKERS'].split(',') if t.strip()]; import inspect_tickers; inspect_tickers.main(sys.argv[1:])"
