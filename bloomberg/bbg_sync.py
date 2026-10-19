@@ -194,14 +194,22 @@ class Bbg:
         return data, errs
 
 
+LOGIN_DETAIL = ""
+
+
 def logged_in(bbg):
-    """One tiny request: a real S&P 500 price means the Terminal is logged in and serving data."""
+    """One tiny request: a real S&P 500 price means the Terminal is logged in and serving data.
+    LOGIN_DETAIL keeps what Bloomberg actually answered, for the test report."""
+    global LOGIN_DETAIL
     try:
-        d, _ = bbg.ref(["SPX Index"], ["PX_LAST"])
+        d, errs = bbg.ref(["SPX Index"], ["PX_LAST"])
         v = d.get("SPX Index", {}).get("PX_LAST")
-        return isinstance(v, (int, float)) and v > 0
-    except Exception:  # noqa: BLE001
-        return False
+        if isinstance(v, (int, float)) and v > 0:
+            return True
+        LOGIN_DETAIL = f"S&P 500 last price came back as {v!r}; Bloomberg's messages: {errs or 'none'}"
+    except Exception as e:  # noqa: BLE001
+        LOGIN_DETAIL = f"the request failed: {e}"
+    return False
 
 
 def num(v):
@@ -689,9 +697,12 @@ def run(mode):
         return 0
     try:
         if not logged_in(bbg):
-            log(f"slot {slot}: Bloomberg is not logged in; will try again in 15 minutes")
+            log(f"slot {slot}: Bloomberg is not logged in ({LOGIN_DETAIL}); will try again in 15 minutes")
             if mode != "auto":
                 say("  [!!]  Bloomberg answered but is not serving data: are you logged in?")
+                say(f"        Bloomberg said: {LOGIN_DETAIL}")
+                say("        Check: is the Terminal showing live prices right now (not a login or 'session moved' screen)?")
+                say("        Bloomberg Anywhere allows one session at a time: logging in on a phone or another PC locks this one.")
             return 0
         gh = GitHub(token) if token else None
         say(f"Bloomberg sync {now:%Y-%m-%d %H:%M} ({'TEST: nothing will be uploaded' if mode == 'test' else 'slot ' + slot})")
