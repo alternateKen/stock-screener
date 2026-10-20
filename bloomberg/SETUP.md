@@ -108,7 +108,7 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
    - **Outside weekdays 07:00–21:00** (this PC's clock) it does nothing.
    - **At 08:30, 16:30 and 20:00** a "slot" becomes due. It runs **the first time you're logged in to Bloomberg after that time**.
    - **If Bloomberg is logged out**, it stops quietly and tries again 15 minutes later. It never logs in for you.
-   - Every slot updates Fed pricing, credit indices and the economic calendar. The screener's analyst consensus updates once a day, and index weights once a week.
+   - Every slot updates Fed pricing, credit indices and the economic calendar. Index weights update once a week. The screener's analyst consensus updates once a week (the first slot from Monday), starting 2 November 2026.
 3. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
 
 ### What it fills in automatically
@@ -122,7 +122,11 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
 **Still typed by hand for now:** `wirp_global.csv` (other central banks). Bloomberg's WIRP screen for other countries uses each country's OIS curve, and there is no simple API field for it. Ask Bloomberg (**HELP HELP**): *"Can WIRP meeting probabilities for other central banks be downloaded through the Excel/Desktop API, and with which tickers or fields?"* If they give you tickers, Claude can add them.
 
 ### Good to know
-- **Data limits:** each run uses a small part of Bloomberg Anywhere's API allowance. The heaviest step, consensus for about 800 stocks, runs once a day.
+- **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, skipping a step rather than going over. Every test and run prints how much it has used, e.g. `Bloomberg allowance used by this sync: 640 unique securities this month`. Roughly:
+  - Fed pricing, credit and the calendar: about 80 securities, re-used every slot (credit asks only for the last few days, not 3 months each time).
+  - Index weights (weekly): the official US weights cost 3 securities. For the Asian indices only the ~120 largest names are re-measured, not every member (TWSE alone has about 950).
+  - Analyst consensus (weekly, theme stocks only): about 830 securities.
+  - `run_test.bat` checks consensus on 5 stocks only and skips index weights, so testing costs almost nothing.
 - **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices). The macro files show the same kind of numbers you previously typed in by hand.
 - **Your firm's rules:** if this is a work computer, make sure running a scheduled script with Bloomberg data is allowed.
 - **If you change PC:** repeat steps 3, 4 and 6–9 on the new PC.

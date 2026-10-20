@@ -148,6 +148,9 @@ def analyse(bars, spx=None, now=None):
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
         "ma100": sma_series(closes, 100)[-1], "ema10": ema_series(closes, 10)[-1], "ema21": ema_series(closes, 21)[-1],
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
+        # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (weekly) numbers;
+        # removed again in load_consensus so it never reaches data.json
+        "_mah": {datetime.fromtimestamp(t, timezone.utc).date().isoformat(): (a, b) for t, a, b in zip(ts[-10:], m50[-10:], m200[-10:])},
         "atr_pct": atr / last * 100 if atr and last else None, "vol_x": vol_x,
         "off_hi": pct(last, max(yr)),
         "spark": [round(x, 4) for x in closes[-45:]],
@@ -598,20 +601,25 @@ def load_consensus(stocks, errors, path=None):
         errors.append(f"Bloomberg consensus file unreadable: {e}")
         return None
     n, checked, off = 0, 0, []
+    day = str(c.get("asof") or "")[:10]
     for k, rec in (c.get("stocks") or {}).items():
         if k in stocks:
             st = stocks[k]
             st["st"] = rec
             n += 1
+            # Bloomberg's averages are from the sync day (weekly): compare with ours as of the last close before it
+            then = [v for d, v in sorted(st.get("_mah", {}).items()) if d < day]
+            ours_then = {"ma50": then[-1][0], "ma200": then[-1][1]} if then else {}
             # cross-check against Bloomberg's own moving averages: more than 3% apart means the price history differs
             # (wrong listing, missing or unadjusted data) and the stock's signals should not be trusted
             diffs = []
             for ours, theirs, lab in (("ma50", "bma50", "50-day"), ("ma200", "bma200", "200-day")):
-                if st.get(ours) and rec.get(theirs):
+                mine = ours_then.get(ours)
+                if mine and rec.get(theirs):
                     checked += lab == "200-day"
-                    dv = (st[ours] / rec[theirs] - 1) * 100
+                    dv = (mine / rec[theirs] - 1) * 100
                     if abs(dv) > 3:
-                        diffs.append(f"{lab} average {st[ours]:.4g} vs Bloomberg {rec[theirs]:.4g} ({dv:+.1f}%)")
+                        diffs.append(f"{lab} average {mine:.4g} vs Bloomberg {rec[theirs]:.4g} ({dv:+.1f}%)")
             if diffs:
                 st["dq"] = "Data differs from Bloomberg: " + "; ".join(diffs)
                 off.append(k)
@@ -712,6 +720,8 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
         stocks[k] = r
     print(f"fetched {len(stocks)}/{len(jobs)} stocks in {time.time() - t0:.0f}s")
     street = load_consensus(stocks, errors)
+    for r in stocks.values():
+        r.pop("_mah", None)
     # TradingView's technical rating, as a second opinion next to our own indicators
     overrides = {it["k"]: it["exch"] for coll in (themes, [universe]) for t in coll for g in t["groups"] for it in g["items"] if it["exch"]}
     for k, r in stocks.items():

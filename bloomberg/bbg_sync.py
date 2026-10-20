@@ -26,6 +26,12 @@ MACRO_REPO, SCREENER_REPO = "macro-updates", "stock-screener"
 WINDOW = ("07:00", "21:00")            # this PC's clock; weekdays only
 SLOTS = ["08:30", "16:30", "20:00"]
 WEIGHTS_EVERY_DAYS = 7
+WEIGHTS_TRACK = 120                    # Asian indices without official weights: market caps for these many names only
+CONSENSUS_FROM = date(2026, 11, 2)     # paused until October's allowance resets; then weekly, first slot from Monday
+# Bloomberg Anywhere API allowance (the owner's ceiling: under 3,000 unique securities a month, 400,000 hits a day).
+# The sync keeps its own count and skips the big steps rather than go past these.
+BUDGET_SECS_MONTH = 2500
+BUDGET_HITS_DAY = 300_000
 WEIGHT_INDICES = {                     # macro-updates weights/<file>  <-  Bloomberg index
     "dow.csv": "INDU Index", "spx.csv": "SPX Index", "ndx.csv": "NDX Index", "hshares.csv": "HSCEI Index",
     "ashares.csv": "SHSZ300 Index", "taiex.csv": "TWSE Index", "kospi.csv": "KOSPI Index",
@@ -84,6 +90,7 @@ class Bbg:
         if not self.s.openService("//blp/refdata"):
             raise ConnectionError("Bloomberg refused the data service")
         self.svc = self.s.getService("//blp/refdata")
+        self.secs, self.hits = set(), 0      # what this run used (the allowance counts both)
 
     def close(self):
         try:
@@ -156,7 +163,9 @@ class Bbg:
                     for k in range(fd.numElements()):
                         el = fd.getElement(k)
                         row[str(el.name())] = self._bulk(el) if el.isArray() else self._value(el)
+                        self.hits += len(row[str(el.name())]) if isinstance(row[str(el.name())], list) else 1
                     data[sec] = row
+                    self.secs.add(sec)
         return data, errs
 
     def hist(self, securities, fields, start, end=None, overrides=None, chunk=100):
@@ -191,7 +200,39 @@ class Bbg:
                     d = p.getElementAsDatetime("date")
                     rows.append((date(d.year, d.month, d.day),
                                  {str(p.getElement(j).name()): self._value(p.getElement(j)) for j in range(p.numElements())}))
+                    self.hits += max(p.numElements() - 1, 1)
+                self.secs.add(sec)
         return data, errs
+
+
+# ---------------- API allowance ----------------
+def usage(st):
+    """This month's unique securities and today's hits, as counted by this sync (state.json)."""
+    u = st.setdefault("usage", {})
+    if u.get("month") != date.today().strftime("%Y-%m"):
+        u.update(month=date.today().strftime("%Y-%m"), secs=[])
+    if u.get("day") != date.today().isoformat():
+        u.update(day=date.today().isoformat(), hits=0)
+    return u
+
+
+def record_usage(st, bbg):
+    u = usage(st)
+    u["secs"] = sorted(set(u["secs"]) | bbg.secs)
+    u["hits"] += bbg.hits
+    bbg.hits = 0
+
+
+def affordable(st, bbg, secs, hits):
+    """Would asking for these securities (about `hits` data points) stay inside the allowance? -> (ok, reason)"""
+    u = usage(st)
+    used = set(u["secs"]) | bbg.secs
+    new = len(set(secs) - used)
+    if len(used) + new > BUDGET_SECS_MONTH:
+        return False, f"would take this month's unique securities to {len(used) + new:,} (budget {BUDGET_SECS_MONTH:,})"
+    if u["hits"] + bbg.hits + hits > BUDGET_HITS_DAY:
+        return False, f"would take today's hits to {u['hits'] + bbg.hits + hits:,} (budget {BUDGET_HITS_DAY:,})"
+    return True, ""
 
 
 LOGIN_DETAIL = ""
@@ -330,24 +371,45 @@ def read_config(name):
         return [r for r in csv.DictReader(line for line in f if line.strip() and not line.startswith("#"))]
 
 
-def credit(bbg):
-    """CDX / iTraxx levels with 3-month context -> macro-updates bloomberg/credit.csv (tickers in credit_tickers.csv)."""
+def credit(bbg, st):
+    """CDX / iTraxx levels with 3-month context -> macro-updates bloomberg/credit.csv (tickers in credit_tickers.csv).
+    The ticker that worked and its history are remembered, so each run asks only for the last few days."""
     cfg = read_config("credit_tickers.csv")
     cands = {c["index"]: [t.strip() for t in c["ticker"].split("|") if t.strip()] for c in cfg}
-    h, errs = bbg.hist([t for ts in cands.values() for t in ts], ["PX_LAST"], date.today() - timedelta(days=100))
+    known = st.setdefault("credit_ticker", {})
+    cache = st.setdefault("credit_hist", {})            # ticker -> [[iso date, level], ...] (about 100 days)
+    since = date.today() - timedelta(days=100)
+
+    def fetch(tickers, start):
+        h, e = bbg.hist(tickers, ["PX_LAST"], start)
+        for t, rows in h.items():
+            got = dict(cache.get(t, []))
+            got.update({d.isoformat(): num(v.get("PX_LAST")) for d, v in rows if num(v.get("PX_LAST")) is not None})
+            cache[t] = sorted([d, x] for d, x in got.items() if d >= since.isoformat())
+        return e
+
+    quick = [known[i] for i in cands if known.get(i) in cands[i] and cache.get(known[i])]
+    errs = {}
+    if quick:
+        last = min(date.fromisoformat(cache[t][-1][0]) for t in quick)
+        errs.update(fetch(quick, max(since, last - timedelta(days=7))))
+    rest = [t for i, ts in cands.items() if not (known.get(i) in quick) for t in ts]
+    if rest:
+        errs.update(fetch(rest, since))
     rows, bad = [], []
     for c in cfg:
         pts, used = [], None
-        for t in cands[c["index"]]:
-            pts = [p for p in (num(v.get("PX_LAST")) for _, v in h.get(t, [])) if p is not None]
+        for t in ([known[c["index"]]] if known.get(c["index"]) in quick else []) + cands[c["index"]]:
+            pts = [x for _, x in cache.get(t, [])]
             if len(pts) >= 2:
                 used = t
                 break
         if not used:
             bad.append(f"{c['index']} (tried {' / '.join(cands[c['index']])})")
             continue
-        if len(cands[c["index"]]) > 1:
+        if known.get(c["index"]) != used and len(cands[c["index"]]) > 1:
             say(f"  [..]    {c['index']}: using {used}")
+        known[c["index"]] = used
         q = pts[-63:]
         lvl, avg_ = pts[-1], sum(q) / len(q)
         rows.append([c["group"], c["index"], f"{lvl:.2f}", f"{lvl - pts[-2]:.2f}", "", "", f"{min(q):.1f}", f"{max(q):.1f}",
@@ -442,12 +504,31 @@ def member_rows(rows):
     return out
 
 
-def weights(bbg):
+def previous_weights(gh, fname):
+    """The weights file currently on the dashboard -> {ticker: (name, weight)} (empty when unreadable)."""
+    out = {}
+    try:
+        text = gh.read(MACRO_REPO, f"weights/{fname}") if gh else ""
+    except Exception:  # noqa: BLE001
+        return out
+    for r in csv.DictReader(l for l in text.splitlines() if l.strip() and not l.startswith("#")):
+        w = num(r.get("% Weight"))
+        if r.get("Ticker") and w is not None:
+            out[r["Ticker"].strip()] = (r.get("Name") or "", w)
+    return out
+
+
+def weights(bbg, gh, st, full=False):
     """Index weights -> macro-updates weights/*.csv (read by the top-movers cards).
     Official weights (INDX_MWEIGHT) when Bloomberg provides them; some index providers do not allow their weights to be
-    sent (they come back as zeros), and then the weights are computed from free-float market caps of the members."""
+    sent (they come back as zeros), and then the weights are computed from free-float market caps. To save the API
+    allowance, market caps are asked only for the names that were near the top last time (WEIGHTS_TRACK) plus new
+    index members; `full` (bbg_sync.py --full-weights) asks for every member."""
     files, members = {}, {}
+    top = st.setdefault("weights_top", {})            # file -> {ticker: weight} for the largest WEIGHTS_TRACK names
+    seen = st.setdefault("weights_members", {})       # file -> every member last time (to spot new ones)
     d, errs = bbg.ref(list(WEIGHT_INDICES.values()), ["INDX_MWEIGHT"])
+    names = {}
     for fname, idx in WEIGHT_INDICES.items():
         raw = d.get(idx, {}).get("INDX_MWEIGHT") or []
         mem = member_rows(raw)
@@ -455,25 +536,48 @@ def weights(bbg):
             say(f"  [!!]  Weights {idx}: no members returned ({errs.get(idx) or errs.get(idx + '|INDX_MWEIGHT') or 'empty'})")
             continue
         members[fname] = [t for t, _ in mem]
+        prev = previous_weights(gh, fname)
+        names.update({t: n for t, (n, _) in prev.items() if n and n != t})
         total = sum(w for _, w in mem if w and w > 0)
         if 50 <= total <= 150:
             method = "official index weights (INDX_MWEIGHT)"
         else:
             if raw:
                 log(f"{idx} INDX_MWEIGHT first row: {raw[0]}")
-            mem, method = cap_weights(bbg, [t for t, _ in mem], idx == "INDU Index")
+            tickers = members[fname]
+            last = top.get(fname) or {t: w for t, (_, w) in prev.items()}
+            if not full and idx != "INDU Index" and last:
+                known = set(seen.get(fname) or tickers)
+                pick = [t for t in tickers if t in last or t not in known]
+            else:
+                pick = tickers
+            ok, why = affordable(st, bbg, [t + " Equity" for t in pick], len(pick) * 2)
+            if not ok:
+                say(f"  [!!]  Weights {idx} skipped to stay inside the Bloomberg allowance: {why}")
+                continue
+            if pick is not tickers:
+                cover = sum(w for t, w in last.items() if t in pick)
+                mem, method = cap_weights(bbg, pick, False)
+                mem = [(t, w * cover / 100) for t, w in mem]
+                method += f"; the {len(pick)} largest names re-measured, scaled to their last full share ({cover:.0f}%)"
+            else:
+                mem, method = cap_weights(bbg, tickers, idx == "INDU Index")
             if not mem:
                 say(f"  [!!]  Weights {idx}: official weights not provided and market caps unavailable")
                 continue
+            mem.sort(key=lambda x: -x[1])
+            top[fname] = {t: round(w, 4) for t, w in mem[:WEIGHTS_TRACK]}
+            seen[fname] = members[fname]
         mem.sort(key=lambda x: -x[1])
         keep = KEEP_TOP.get(fname, 100)
         cover = sum(w for _, w in mem[:keep])
         files[fname] = (mem[:keep], method, cover)
-    allm = sorted({t for mem, _, _ in files.values() for t, _ in mem})
-    nm, _ = bbg.ref([t + " Equity" for t in allm], ["NAME"]) if allm else ({}, {})
+    need = sorted({t for mem, _, _ in files.values() for t, _ in mem} - set(names))
+    nm, _ = bbg.ref([t + " Equity" for t in need], ["NAME"]) if need else ({}, {})
+    names.update({t: nm[t + " Equity"]["NAME"] for t in need if nm.get(t + " Equity", {}).get("NAME")})
     out = {}
     for fname, (mem, method, cover) in files.items():
-        rows = [[t, (nm.get(t + " Equity", {}).get("NAME") or t), f"{w:.4f}"] for t, w in mem]
+        rows = [[t, names.get(t) or t, f"{w:.4f}"] for t, w in mem]
         out[f"weights/{fname}"] = csv_text([("source", f"Bloomberg API {WEIGHT_INDICES[fname]}: {method}, automatic sync"),
                                             ("asof", date.today().isoformat())], ["Ticker", "Name", "% Weight"], rows)
         tag = "official" if method.startswith("official") else "free-float cap"
@@ -543,8 +647,9 @@ def bbg_code(code):
     return f"{base} {cc} Equity"
 
 
-def screener_codes(gh, members):
-    """Every ticker in the screener's theme files and universe.txt, plus the index members from Bloomberg -> {yahoo key: bbg code}."""
+def screener_codes(gh):
+    """Every ticker in the screener's theme files and universe.txt -> {yahoo key: bbg code}. The S&P 500 / Nasdaq-100
+    members that are in no theme are left out to save the API allowance."""
     out = {}
     files = [f"themes/{f['name']}" for f in gh.list_dir(SCREENER_REPO, "themes") if f["name"].endswith(".txt")] + ["universe.txt"]
     for path in files:
@@ -555,20 +660,27 @@ def screener_codes(gh, members):
             code = line.split("|")[0].strip()
             if code and not code.startswith("^") and "." not in code:   # indices and Yahoo-only codes have no consensus
                 out.setdefault(yahoo_key(code), bbg_code(code))
-    for f in ("spx.csv", "ndx.csv"):
-        for t in members.get(f, []):
-            out.setdefault(yahoo_key(t), t + " Equity")
     return out
 
 
-def consensus(bbg, gh, members):
+CONSENSUS_SAMPLE = ["NVDA", "MSFT", "2330 TT", "005930 KS", "247540 KS"]
+
+
+def consensus(bbg, gh, st, sample=False):
     """Street view per stock, DERIVED numbers only (the site is public): upside to the consensus target, % of analysts
     rating Buy, consensus rating 1-5, number of analysts, and the 4-week change in the next-12-month EPS estimate."""
-    codes = screener_codes(gh, members)
+    codes = {yahoo_key(c): bbg_code(c) for c in CONSENSUS_SAMPLE} if sample else screener_codes(gh)
     secs = sorted(set(codes.values()))
-    d, errs = bbg.ref(secs, ["PX_LAST", "BEST_TARGET_PRICE", "BEST_ANALYST_RATING", "TOT_ANALYST_REC", "TOT_BUY_REC",
-                             "MOV_AVG_50D", "MOV_AVG_200D"])
-    h, _ = bbg.hist(secs, ["BEST_EPS"], date.today() - timedelta(days=35), overrides={"BEST_FPERIOD_OVERRIDE": "BF"})
+    ok, why = affordable(st, bbg, secs, len(secs) * 12)
+    if not ok:
+        say(f"  [!!]  Screener consensus skipped to stay inside the Bloomberg allowance: {why}")
+        return None
+    fields = ["PX_LAST", "BEST_TARGET_PRICE", "BEST_ANALYST_RATING", "TOT_ANALYST_REC", "TOT_BUY_REC", "MOV_AVG_50D", "MOV_AVG_200D"]
+    d, errs = bbg.ref(secs, fields)
+    # EPS revision: today's next-12-month estimate against the one 4 weeks ago (a 5-day window, not 5 weeks of history)
+    eps_now, _ = bbg.ref(secs, ["BEST_EPS"], overrides={"BEST_FPERIOD_OVERRIDE": "BF"})
+    h, _ = bbg.hist(secs, ["BEST_EPS"], date.today() - timedelta(days=31), date.today() - timedelta(days=27),
+                    overrides={"BEST_FPERIOD_OVERRIDE": "BF"})
     out, have = {}, 0
     for key, sec in codes.items():
         v = d.get(sec)
@@ -576,7 +688,7 @@ def consensus(bbg, gh, members):
             continue
         px, tp = num(v.get("PX_LAST")), num(v.get("BEST_TARGET_PRICE"))
         n, buy, rt = num(v.get("TOT_ANALYST_REC")), num(v.get("TOT_BUY_REC")), num(v.get("BEST_ANALYST_RATING"))
-        eps = [num(x.get("BEST_EPS")) for _, x in h.get(sec, [])]
+        eps = [num(x.get("BEST_EPS")) for _, x in h.get(sec, [])][:1] + [num(eps_now.get(sec, {}).get("BEST_EPS"))]
         eps = [e for e in eps if e is not None]
         rec = {}
         if px and tp:
@@ -588,11 +700,11 @@ def consensus(bbg, gh, members):
         if rt:
             rec["rt"] = round(rt, 2)
         # data check: Bloomberg's own 50 / 200-day averages, compared with the screener's (Yahoo-based) ones
-        for f, key in (("MOV_AVG_50D", "bma50"), ("MOV_AVG_200D", "bma200")):
+        for f, fk in (("MOV_AVG_50D", "bma50"), ("MOV_AVG_200D", "bma200")):
             x = num(v.get(f))
             if x:
-                rec[key] = float(f"{x:.6g}")
-        if len(eps) >= 15 and eps[0]:
+                rec[fk] = float(f"{x:.6g}")
+        if len(eps) == 2 and eps[0]:
             rec["rev4w"] = round((eps[-1] / eps[0] - 1) * 100 * (1 if eps[0] > 0 else -1), 1)
         if rec:
             out[key] = rec
@@ -708,7 +820,7 @@ def run(mode):
         say(f"Bloomberg sync {now:%Y-%m-%d %H:%M} ({'TEST: nothing will be uploaded' if mode == 'test' else 'slot ' + slot})")
         macro, screener, members = {}, {}, {}
         today = date.today().isoformat()
-        for name, fn in (("Fed pricing", lambda: fed_pricing(bbg, gh)), ("Credit", lambda: credit(bbg)), ("Economic calendar", lambda: eco(bbg, st))):
+        for name, fn in (("Fed pricing", lambda: fed_pricing(bbg, gh)), ("Credit", lambda: credit(bbg, st)), ("Economic calendar", lambda: eco(bbg, st))):
             try:
                 t0 = time.time()
                 macro.update(fn())
@@ -716,12 +828,15 @@ def run(mode):
             except Exception as e:  # noqa: BLE001
                 say(f"  [!!]  {name} failed: {e}")
                 log(traceback.format_exc())
+        # index weights: weekly (the Asian ones re-measure only the largest names); a test skips them unless asked
         last_w = st.get("weights_date", "2000-01-01")
-        if mode != "auto" or (date.today() - date.fromisoformat(last_w)).days >= WEIGHTS_EVERY_DAYS:
+        if ("--weights" in sys.argv or "--full-weights" in sys.argv) if mode == "test" else \
+                ("--weights" in sys.argv or "--full-weights" in sys.argv or (date.today() - date.fromisoformat(last_w)).days >= WEIGHTS_EVERY_DAYS):
             try:
-                say("  ...   index weights: 7 indices, about 1,100 member names (can take a minute)")
+                full = "--full-weights" in sys.argv
+                say(f"  ...   index weights: 7 indices{', every member (full)' if full else ''}")
                 t0 = time.time()
-                wf, members = weights(bbg)
+                wf, members = weights(bbg, gh, st, full)
                 say(f"        (index weights took {time.time() - t0:.0f}s)")
                 macro.update(wf)
                 if wf and mode != "test":
@@ -729,22 +844,33 @@ def run(mode):
             except Exception as e:  # noqa: BLE001
                 say(f"  [!!]  Index weights failed: {e}")
                 log(traceback.format_exc())
-        if mode != "auto" or st.get("consensus_date") != today:
+        else:
+            log(f"index weights not due (last {last_w})")
+        # screener consensus: weekly from CONSENSUS_FROM (first slot of each week); a test checks 5 stocks only
+        week = "%d-W%02d" % date.today().isocalendar()[:2]
+        due = date.today() >= CONSENSUS_FROM and st.get("consensus_week") != week
+        if mode == "test" or due or "--consensus" in sys.argv:
             try:
-                if not members:   # consensus also covers the S&P 500 / Nasdaq-100 members
-                    _, members = weights_members_only(bbg)
-                if gh:
-                    say("  ...   screener consensus: about 800 stocks plus 5 weeks of EPS estimates (can take 1-3 minutes)")
-                    t0 = time.time()
-                    screener.update(consensus(bbg, gh, members))
-                    say(f"        (consensus took {time.time() - t0:.0f}s)")
-                    if screener and mode != "test":
-                        st["consensus_date"] = today
-                else:
+                if mode != "test" and not gh:
                     say("  [..]  Screener consensus skipped: it needs the GitHub token to read the theme lists (step 7 of SETUP.md)")
+                else:
+                    say("  ...   screener consensus: " + ("a 5-stock sample (test)" if mode == "test" else "the theme stocks (can take 1-3 minutes)"))
+                    t0 = time.time()
+                    got = consensus(bbg, gh, st, sample=mode == "test")
+                    say(f"        (consensus took {time.time() - t0:.0f}s)")
+                    if got:
+                        screener.update(got)
+                        if mode != "test":
+                            st["consensus_week"] = week
             except Exception as e:  # noqa: BLE001
                 say(f"  [!!]  Screener consensus failed: {e}")
                 log(traceback.format_exc())
+        elif date.today() < CONSENSUS_FROM:
+            say(f"  [..]  Screener consensus paused until {CONSENSUS_FROM:%d %b %Y} (Bloomberg allowance), then weekly")
+        record_usage(st, bbg)
+        u = usage(st)
+        say(f"  [..]  Bloomberg allowance used by this sync: {len(u['secs']):,} unique securities this month "
+            f"(budget {BUDGET_SECS_MONTH:,}), {u['hits']:,} hits today (budget {BUDGET_HITS_DAY:,})")
         if mode == "test":
             out = os.path.join(os.path.expanduser("~"), "Desktop", "bloomberg_test_output")
             for repo, files in ((MACRO_REPO, macro), (SCREENER_REPO, screener)):
@@ -767,17 +893,6 @@ def run(mode):
         return 0
     finally:
         bbg.close()
-
-
-def weights_members_only(bbg):
-    """Index members for the screener when the weekly weights step did not run today (no files written)."""
-    d, _ = bbg.ref(["SPX Index", "NDX Index"], ["INDX_MWEIGHT"])
-    out = {}
-    for f, idx in (("spx.csv", "SPX Index"), ("ndx.csv", "NDX Index")):
-        out[f] = [str(next((v for k, v in r.items() if "ticker" in k.lower() or "member" in k.lower()), "")).strip()
-                  for r in d.get(idx, {}).get("INDX_MWEIGHT") or []]
-        out[f] = [t for t in out[f] if t]
-    return {}, out
 
 
 if __name__ == "__main__":

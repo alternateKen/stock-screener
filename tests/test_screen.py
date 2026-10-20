@@ -178,7 +178,10 @@ class Consensus(unittest.TestCase):
             p = os.path.join(d, "c.json")
             with open(p, "w") as fh:
                 json.dump({"asof": "2026-10-15T08:30+08:00", "stocks": {"NVDA": {"up": 12.5, "buy": 90, "n": 60, "rt": 4.7, "rev4w": 3.1}}}, fh)
-            stocks, errors = {"NVDA": {"ma50": 100.0, "ma200": 80.0}, "AAPL": {}}, []
+            # Bloomberg's averages (synced weekly) are compared with ours as of the last close before the sync day
+            stocks, errors = {"NVDA": {"ma50": 130.0, "ma200": 130.0,
+                                       "_mah": {"2026-10-13": (90.0, 70.0), "2026-10-14": (100.0, 80.0), "2026-10-15": (130.0, 130.0)}},
+                              "AAPL": {}}, []
             with open(p, "w") as fh:
                 json.dump({"asof": "2026-10-15T08:30+08:00", "stocks": {"NVDA": {"up": 12.5, "buy": 90, "n": 60, "rt": 4.7, "rev4w": 3.1,
                                                                                   "bma50": 101.0, "bma200": 90.0}}}, fh)
