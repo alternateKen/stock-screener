@@ -75,10 +75,8 @@ About 6:15am New York time (after every Asian market has closed), then every 30 
 `themes/*.txt` (your lists), `universe.txt` (broad screen), `.github/workflows/update.yml` (schedule).
 
 ## Bloomberg
-`bloomberg/bbg_sync.py` runs on the PC where you're logged in to Bloomberg (your main terminal). Windows Task Scheduler starts it every 15 minutes. During weekdays 07:00–21:00, at the 08:30, 16:30 and 20:00 slots, and only when Bloomberg is logged in, it updates:
-- the macro dashboard's Fed pricing, credit indices, US economic calendar and index weights;
-- the screener's **Street** column: Bloomberg consensus as derived numbers only (upside to target, % Buy, 4-week EPS revisions).
+`bloomberg/bbg_sync.py` runs on the PC where you're logged in to Bloomberg (your main terminal). Windows Task Scheduler starts it every 15 minutes, but it only does anything once a week (the first time Bloomberg is logged in on a weekday from Monday, 07:00–21:00), plus whenever you double-click `run_now.bat`. It updates the screener's **Street** column: Bloomberg consensus as derived numbers only (upside to target, % Buy, 4-week EPS revisions), and Bloomberg's 50 / 200-day averages for the ⚠ data check. It stays inside the Bloomberg API allowance (under 2,500 unique securities a month). The macro dashboard's Bloomberg files are no longer updated by it.
 
-All the files go up in one commit per repository, using a GitHub key that can only write to these two repositories.
+The file goes up in one commit, using a GitHub key that can only write to this repository.
 
 **Setup:** [`bloomberg/SETUP.md`](bloomberg/SETUP.md) is a plain-English guide: connection check, then the GitHub key, then a test run that uploads nothing, then switching it on.

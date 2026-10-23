@@ -16,7 +16,7 @@ Three rules come with this:
 
 The script doesn't need Claude, Yahoo, Wikipedia or X. It only needs **Bloomberg** (the back door on the same PC) and **github.com** (to upload results to your website). That's why your main terminal's blocks on Yahoo, Wikipedia and X don't matter here.
 
-What it would do every morning: ask Bloomberg for a few things in bulk (index members and weights, Asian prices, consensus, WIRP-type data) and save them to your GitHub repositories, so you never type them in by hand. Only derived numbers, such as signals and rankings, appear on the public website, never raw Bloomberg data.
+What it does once a week: ask Bloomberg for analyst consensus on every stock in your themes, and save it to the stock-screener repository, so you never type it in by hand. Only derived numbers, such as upside percentages, appear on the public website, never raw Bloomberg data. (The charts themselves come from free data and don't use Bloomberg.)
 
 ---
 
@@ -76,11 +76,11 @@ From now on, everything happens in `C:\Users\<your name>\bbg_sync`.
 
 ## Step 7: Create a GitHub key that can only update your two repositories (5 minutes)
 
-The sync needs a key to upload to GitHub. This key can **only** change the files in `macro-updates` and `stock-screener`, nothing else in your account.
+The sync needs a key to upload to GitHub. This key can **only** change the files in `stock-screener`, nothing else in your account. (An existing key that also covers `macro-updates` keeps working.)
 
 1. In Chrome, go to **github.com → your picture (top right) → Settings → Developer settings** (bottom of the left menu) **→ Personal access tokens → Fine-grained tokens → Generate new token**.
 2. **Token name:** `Bloomberg sync`. **Expiration:** the longest offered (put a reminder in your calendar to renew it).
-3. **Repository access:** choose **Only select repositories** and pick **macro-updates** and **stock-screener**.
+3. **Repository access:** choose **Only select repositories** and pick **stock-screener**.
 4. **Permissions → Repository permissions → Contents:** choose **Read and write**. Leave everything else as it is.
 5. Press **Generate token** and **copy** the long code that starts with `github_pat_`.
 6. Open **Notepad**, paste the code, then **File → Save as**:
@@ -95,38 +95,35 @@ Treat this key like a password: **never paste it into a chat (including Claude),
 
 1. Make sure you're logged in to Bloomberg.
 2. In `bbg_sync`, double-click **`run_test.bat`**.
-3. It fetches everything once and saves the files in a folder on your Desktop called **`bloomberg_test_output`**. It does **not** upload anything.
+3. It fetches consensus for 5 stocks and saves the file in a folder on your Desktop called **`bloomberg_test_output`**. It does **not** upload anything.
 4. Copy everything in the black window (**Ctrl+A**, then **Enter**) and send it to Claude.
-   Lines starting with `[..] check against ...` ask you to compare one number with the Bloomberg screen (ECO or ANR). Mention whether they match.
+   Lines starting with `[..] check against ...` ask you to compare one number with the Bloomberg screen (ANR). Mention whether they match.
 
 Claude fixes anything Bloomberg named differently, and you download the updated file. Then:
 
 ## Step 9: Switch it on (2 minutes)
 
-1. Double-click **`run_now.bat`** once. It fetches and **uploads** straight away, so you can see the dashboards update within a few minutes.
-2. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
-   - **Outside weekdays 07:00–21:00** (this PC's clock) it does nothing.
-   - **At 08:30, 16:30 and 20:00** a "slot" becomes due. It runs **the first time you're logged in to Bloomberg after that time**.
+1. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
+   - It does nothing unless **this week's run** is still due. The weekly run happens **the first time you're logged in to Bloomberg on a weekday from Monday, after 08:30** (07:00–21:00 on this PC's clock). If you're not logged in on Monday, it runs on Tuesday, and so on.
    - **If Bloomberg is logged out**, it stops quietly and tries again 15 minutes later. It never logs in for you.
-   - Every slot updates Fed pricing, credit indices and the economic calendar. Index weights update once a week. The screener's analyst consensus updates once a week (the first slot from Monday), starting 2 November 2026.
-3. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
+   - Weekly runs start on **2 November 2026** (October's allowance is used up).
+2. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
+
+## Extra runs, whenever you want (about 2–3 a week is fine)
+
+Double-click **`run_now.bat`**. It asks for **extra tickers**:
+- **Press Enter** to refresh every theme stock straight away.
+- **Or type tickers** separated by commas, e.g. `NVDA, 2330 TT, 0700 HK`. Every theme stock is refreshed, plus these. Tickers that aren't in any theme yet are added to the **Inbox** theme on the site, so they get charts and signals too (sort them into a theme later).
+
+Re-running the same stocks doesn't count again against the monthly unique-securities limit, so extra runs are cheap. Each new ticker counts once a month.
 
 ### What it fills in automatically
-| Macro dashboard (`macro-updates`) | Screener (`stock-screener`) |
-|---|---|
-| `bloomberg/wirp_us.csv`: Fed pricing by meeting, calculated from fed funds futures (the same method as WIRP and CME FedWatch, so numbers can differ slightly from the WIRP screen) | `data/bloomberg_consensus.json`: the **Street** column. Upside to the average analyst target, % of analysts rating Buy, and whether earnings estimates rose or fell over 4 weeks |
-| `bloomberg/credit.csv`: CDX / iTraxx levels and 3-month range (the basis and roll columns are not available by API, so they stay blank) | |
-| `bloomberg/eco.csv`: US releases for the next 2 weeks with survey and prior, plus last week's actuals | |
-| `weights/*.csv`: exact index weights for the top-movers cards | |
+`data/bloomberg_consensus.json` in stock-screener: the **Street** column (upside to the average analyst target, % of analysts rating Buy, whether earnings estimates rose or fell over 4 weeks) and Bloomberg's 50 / 200-day averages, used for the ⚠ data check.
 
-**Still typed by hand for now:** `wirp_global.csv` (other central banks). Bloomberg's WIRP screen for other countries uses each country's OIS curve, and there is no simple API field for it. Ask Bloomberg (**HELP HELP**): *"Can WIRP meeting probabilities for other central banks be downloaded through the Excel/Desktop API, and with which tickers or fields?"* If they give you tickers, Claude can add them.
+The macro dashboard's Bloomberg files (Fed pricing, credit, economic calendar, index weights) are **no longer updated** by the sync, to save the allowance. They keep their last values.
 
 ### Good to know
-- **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, skipping a step rather than going over. Every test and run prints how much it has used, e.g. `Bloomberg allowance used by this sync: 640 unique securities this month`. Roughly:
-  - Fed pricing, credit and the calendar: about 80 securities, re-used every slot (credit asks only for the last few days, not 3 months each time).
-  - Index weights (weekly): the official US weights cost 3 securities. For the Asian indices only the ~120 largest names are re-measured, not every member (TWSE alone has about 950).
-  - Analyst consensus (weekly, theme stocks only): about 830 securities.
-  - `run_test.bat` checks consensus on 5 stocks only and skips index weights, so testing costs almost nothing.
-- **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices). The macro files show the same kind of numbers you previously typed in by hand.
+- **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, stopping rather than going over. Every run prints its totals, e.g. `Bloomberg allowance used by this sync: 840 unique securities this month`. A full run is about 830 securities (your theme stocks) and roughly 10,000 hits, so weekly runs plus 2–3 extra a week fit easily. `run_test.bat` costs almost nothing (5 stocks).
+- **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices).
 - **Your firm's rules:** if this is a work computer, make sure running a scheduled script with Bloomberg data is allowed.
 - **If you change PC:** repeat steps 3, 4 and 6–9 on the new PC.
