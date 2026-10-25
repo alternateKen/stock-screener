@@ -84,6 +84,23 @@ def ema_touches(series, hi, lo, unit):
             yield f"t{n}{unit[0]}", 1 if up else -1, f"Touching {n}-{unit} EMA, {'rising' if up else 'falling'}"
 
 
+def short_trend(last, e9, e21):
+    """Short-term trend from the 9 and 21-day EMAs (lists): up = price above EMA 9 above EMA 21, both rising
+    (vs EMA_SLOPE sessions ago); down = the mirror image; anything else = mixed."""
+    if len(e9) <= EMA_SLOPE or None in (e9[-1], e21[-1], e9[-1 - EMA_SLOPE], e21[-1 - EMA_SLOPE]):
+        return None
+    r9, r21 = e9[-1] > e9[-1 - EMA_SLOPE], e21[-1] > e21[-1 - EMA_SLOPE]
+    if last > e9[-1] > e21[-1] and r9 and r21:
+        d = "up"
+    elif last < e9[-1] < e21[-1] and not r9 and not r21:
+        d = "down"
+    else:
+        d = "mixed"
+    why = (f"price {'above' if last > e9[-1] else 'below'} EMA 9, EMA 9 {'above' if e9[-1] > e21[-1] else 'below'} EMA 21, "
+           f"EMA 9 {'rising' if r9 else 'falling'}, EMA 21 {'rising' if r21 else 'falling'}")
+    return {"dir": d, "why": why}
+
+
 def rsi14(closes):
     """Wilder RSI(14), the same smoothing TradingView uses by default."""
     if len(closes) < 15:
@@ -163,6 +180,7 @@ def analyse(bars, spx=None, now=None):
     ema.update({f"wema{n}": we[n][-1] for n in EMAS})
     slope = lambda s: None if s[-1] is None or len(s) <= EMA_SLOPE or s[-1 - EMA_SLOPE] is None else (1 if s[-1] > s[-1 - EMA_SLOPE] else -1)   # noqa: E731
     ema["eslope"] = {**{f"d{n}": slope(de[n]) for n in EMAS}, **{f"w{n}": slope(we[n]) for n in EMAS}}
+    sterm = short_trend(closes[-1], de[9], de[21])
     touches = list(ema_touches(de, highs[-1], lows[-1], "day")) + (list(ema_touches(we, wh[-1], wl[-1], "week")) if wc else [])
     if len(closes) > KEEP:
         ts, closes, highs, lows, vols = ts[-KEEP:], closes[-KEEP:], highs[-KEEP:], lows[-KEEP:], vols[-KEEP:]
@@ -188,7 +206,7 @@ def analyse(bars, spx=None, now=None):
         "last": last, "prev": prev, "pct": pct(last, prev), "w1": pct(last, ago(5)), "m1": pct(last, ago(21)),
         "m3": pct(last, ago(63)), "ytd": pct(last, ytd_base),
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
-        "ma100": sma_series(closes, 100)[-1], **ema,
+        "ma100": sma_series(closes, 100)[-1], **ema, "sterm": sterm,
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
         # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (daily) numbers;
         # removed again in load_consensus so it never reaches data.json
@@ -242,7 +260,7 @@ def analyse(bars, spx=None, now=None):
     if vol_x is not None and vol_x >= 2 and r["pct"] is not None:
         add("vol", 1 if r["pct"] >= 0 else -1, f"Volume {vol_x:.1f}x average on a {r['pct']:+.1f}% day")
     try:
-        fields, extra = patterns.structure(ts, list(highs), list(lows), closes, atr, m50, r["ma200"], vols)
+        fields, extra = patterns.structure(ts, list(highs), list(lows), closes, atr, m50, r["ma200"], vols, de[21][-len(closes):])
         r.update(fields)
         for k, d, t in extra:
             add(k, d, t)

@@ -114,6 +114,17 @@ class Signals(unittest.TestCase):
             e = x * k + e * (1 - k)
         self.assertAlmostEqual(e, r["ema200"], places=3)
 
+    def test_short_trend(self):
+        up = [100.0 + i for i in range(60)]
+        self.assertEqual(screen.short_trend(up[-1], screen.ema_series(up, 9), screen.ema_series(up, 21))["dir"], "up")
+        down = [200.0 - i for i in range(60)]
+        st = screen.short_trend(down[-1], screen.ema_series(down, 9), screen.ema_series(down, 21))
+        self.assertEqual(st["dir"], "down")
+        self.assertIn("EMA 21 falling", st["why"])
+        bounce = down[:-1] + [down[-2] + 8]   # a jump back above EMA 9 while both EMAs still fall
+        self.assertEqual(screen.short_trend(bounce[-1], screen.ema_series(bounce, 9), screen.ema_series(bounce, 21))["dir"], "mixed")
+        self.assertIsNone(screen.short_trend(10.0, [None] * 5, [None] * 5))
+
     def test_adjustments(self):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "adj.txt")

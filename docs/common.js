@@ -25,10 +25,17 @@ const isTouch=s=>/^t\d+[dw]$/.test(s.k),core=r=>(r.signals||[]).filter(s=>!isTou
 const slopeWord=(r,k)=>{const s=(r.eslope||{})[k];return s>0?'rising':s<0?'falling':'n/a'};
 const TREND_ORDER={up:1,side:0,down:-1};
 // trend from price structure (higher highs / lows), the 50/200-day averages and ADX (scripts/patterns.py)
+// plus the short-term trend from the 9 / 21-day EMAs (scripts/screen.py short_trend)
+const stermText=r=>!r.sterm?'':r.sterm.dir==='up'?'short-term up':r.sterm.dir==='down'?'short-term down':'short-term mixed';
+function stermCell(r){
+  const s=r.sterm;if(!s)return '';
+  const c=s.dir==='up'?'up':s.dir==='down'?'dn':'mu',a=s.dir==='up'?'↗ ':s.dir==='down'?'↘ ':'→ ';
+  return `<small class="${c}" style="display:block;font-size:11px;font-weight:400" title="${esc(s.why)}">${a}${stermText(r)}</small>`;
+}
 function trendCell(r){
   const t=r.trend;if(!t)return '<span class="mu">–</span>';
   const c=t.dir==='up'?'up':t.dir==='down'?'dn':'mu',a=t.dir==='up'?'↗ ':t.dir==='down'?'↘ ':'→ ';
-  return `<span class="${c}" title="${esc(t.why||'')}${t.adx!=null?' · ADX '+t.adx:''}">${a}${esc(t.label)}</span>`;
+  return `<span class="${c}" title="${esc(t.why||'')}${t.adx!=null?' · ADX '+t.adx:''}">${a}${esc(t.label)}</span>${stermCell(r)}`;
 }
 const lvPct=(p,last)=>last?(p/last-1)*100:null;
 // nearest support and resistance with distance from the price; hover shows the second level and the number of touches
@@ -97,7 +104,7 @@ function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];ret
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | vs daily EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['ema'+n]==null?'n/a':(r.last>r['ema'+n]?'above':'below')+' ('+slopeWord(r,'d'+n)+')').join(', ')} | vs weekly EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['wema'+n]==null?'n/a':(r.last>r['wema'+n]?'above':'below')+' ('+slopeWord(r,'w'+n)+')').join(', ')} | vs MA50/MA200: ${[r.ma50,r.ma200].map(v=>v==null?'n/a':(r.last>v?'above':'below')).join('/')} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}${r.dq?' | DATA WARNING (treat as unreliable): '+r.dq:''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | vs daily EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['ema'+n]==null?'n/a':(r.last>r['ema'+n]?'above':'below')+' ('+slopeWord(r,'d'+n)+')').join(', ')} | vs weekly EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['wema'+n]==null?'n/a':(r.last>r['wema'+n]?'above':'below')+' ('+slopeWord(r,'w'+n)+')').join(', ')} | vs MA50/MA200: ${[r.ma50,r.ma200].map(v=>v==null?'n/a':(r.last>v?'above':'below')).join('/')} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SHORT-TERM TREND (EMA 9/21) ${r.sterm?r.sterm.dir+' ('+r.sterm.why+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}${r.dq?' | DATA WARNING (treat as unreliable): '+r.dq:''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>

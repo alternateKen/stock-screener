@@ -184,9 +184,9 @@ def find_patterns(closes, sw, atr_pct):
     return out
 
 
-def trend(closes, sw, ma50_series, ma200, adx, last):
+def trend(closes, sw, ma50_series, ma200, adx, last, ema21_series=None):
     """Trend from price structure (higher highs / higher lows), the moving averages and ADX.
-    -> {"dir": "up" | "down" | "side", "label": ..., "score": -5..5, "adx": ..., "hh": bool, "hl": bool}"""
+    -> {"dir": "up" | "down" | "side", "label": ..., "score": -7..7, "adx": ..., "why": ...}"""
     hs = [p for _, p, k in sw if k == "H"][-2:]
     ls = [p for _, p, k in sw if k == "L"][-2:]
     score, why = 0, []
@@ -205,18 +205,28 @@ def trend(closes, sw, ma50_series, ma200, adx, last):
             why.append("50d rising" if m50 > old else "50d falling")
     if m50 and ma200:
         score += 1 if m50 > ma200 else -1
+    # the short term: price against the 21-day EMA, and that EMA's direction over the last 5 sessions
+    e21 = ema21_series[-1] if ema21_series else None
+    if e21:
+        score += 1 if last > e21 else -1
+        old = ema21_series[-6] if len(ema21_series) > 6 else None
+        if old:
+            score += 1 if e21 > old else -1
+            why.append("21d EMA rising" if e21 > old else "21d EMA falling")
     d = "up" if score >= 3 else "down" if score <= -3 else "side"
     strong = adx is not None and adx >= 25
     label = {"up": "Uptrend", "down": "Downtrend", "side": "Sideways"}[d]
     if d != "side" and strong:
         label = "Strong " + label.lower()
+    elif d == "side" and strong:   # mixed signals, but a forceful move under way (ADX 25+): not a quiet range
+        label = "Sideways (strong move)"
     elif d == "side" and adx is not None and adx < 20:
         label = "Range-bound"
     return {"dir": d, "label": label, "score": score, "adx": round(adx, 1) if adx is not None else None,
             "why": ", ".join(why)}
 
 
-def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None):
+def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None, ema21_series=None):
     """Everything above for one stock -> (fields for data.json, extra signals [(key, direction, text)])."""
     n = len(closes)
     if n < 60:
@@ -227,7 +237,7 @@ def structure(ts, highs, lows, closes, atr, ma50_series, ma200, vols=None):
     recent = [s for s in sw if s[0] >= n - LOOKBACK]
     sup, res = levels(recent, last, atr)
     adx = adx14(highs, lows, closes)
-    tr = trend(closes, sw, ma50_series, ma200, adx, last)
+    tr = trend(closes, sw, ma50_series, ma200, adx, last, ema21_series)
     atr_pct = atr / last * 100 if atr and last else None
     pats = find_patterns(closes, sw, atr_pct)
     try:

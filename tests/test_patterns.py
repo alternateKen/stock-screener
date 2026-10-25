@@ -74,6 +74,17 @@ class Patterns(unittest.TestCase):
         self.assertEqual(f["trend"]["dir"], "down")
         self.assertIn("lower highs", f["trend"]["why"])
 
+    def test_trend_uses_ema21_and_flags_strong_sideways(self):
+        sw = [(10, 100.0, "H"), (20, 80.0, "L"), (30, 110.0, "H"), (40, 75.0, "L")]   # higher high, lower low
+        ma50 = [100.0] * 30 + [101.0] * 10   # 50d rising, price 95 below it, 50d above the 200d (90)
+        e21_down = [110.0 - i * 0.2 for i in range(40)]
+        t = P.trend([], sw, ma50, 90.0, 30.0, 95.0)
+        self.assertEqual((t["dir"], t["label"]), ("side", "Sideways (strong move)"))
+        t = P.trend([], sw, ma50, 90.0, 30.0, 95.0, e21_down)   # below a falling 21d EMA: two more points down
+        self.assertEqual(t["score"], -1)
+        self.assertIn("21d EMA falling", t["why"])
+        self.assertEqual(P.trend([], sw, ma50, 90.0, 15.0, 95.0)["label"], "Range-bound")
+
     def test_support_resistance(self):
         # a range: tops near 110, bottoms near 90, price now ~100
         c = path([(0, 100), (20, 110), (40, 90), (60, 110), (80, 90), (100, 110), (120, 90), (140, 100)])
