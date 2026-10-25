@@ -104,8 +104,8 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
 ## Step 9: Switch it on (2 minutes)
 
 1. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
-   - It does nothing unless **today's run** is still due. The daily run happens **the first time you're logged in to Bloomberg on a weekday after 08:30** (07:00–21:00 on this PC's clock). If you're not logged in at all that day, it skips to the next weekday. A `run_now.bat` run counts as that day's run.
-   - **If Bloomberg is logged out**, it stops quietly and tries again on the next quarter hour (08:45, 09:00, 09:15, 09:30 ... until 21:00). It never logs in for you.
+   - It does nothing unless **today's run** is still due. The daily run happens **the first time you're logged in to Bloomberg on a weekday from 05:30** (05:30–21:00 on this PC's clock). If you're not logged in at all that day, it skips to the next weekday. A `run_now.bat` run counts as that day's run.
+   - **If Bloomberg is logged out**, it stops quietly and tries again on the next quarter hour (05:45, 06:00, 06:15 ... until 21:00). It never logs in for you.
    - Runs are allowed from **25 October 2026**; the daily schedule runs on weekdays.
 2. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
 

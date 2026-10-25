@@ -2,7 +2,7 @@
 
 Runs on the PC where you are logged in to Bloomberg. Windows Task Scheduler starts it every 15 minutes;
 each time it:
-  1. stops at once unless today's run is due (the first slot of each weekday, 07:00-21:00 on this PC's clock),
+  1. stops at once unless today's run is due (the first slot of each weekday, 05:30-21:00 on this PC's clock),
   2. stops quietly if Bloomberg is not logged in (it never logs in for you and never sees your password),
   3. otherwise fetches consensus for every theme stock and uploads it to GitHub in ONE commit.
 
@@ -21,8 +21,8 @@ from datetime import date, datetime, timedelta
 # ---------------- settings ----------------
 OWNER = "alternateKen"
 SCREENER_REPO = "stock-screener"
-WINDOW = ("07:00", "21:00")            # this PC's clock; weekdays only
-SLOTS = ["08:30", "16:30", "20:00"]    # the daily run happens in the first of these you are logged in for
+WINDOW = ("05:30", "21:00")            # this PC's clock; weekdays only
+SLOTS = ["05:30", "16:30", "20:00"]    # the daily run happens in the first of these you are logged in for
 CONSENSUS_FROM = date(2026, 10, 25)    # runs allowed from this day (the daily schedule itself is weekdays only)
 # Bloomberg Anywhere API allowance (the owner's ceiling: under 3,000 unique securities a month, 400,000 hits a day).
 # The sync keeps its own count and stops rather than go past these.
