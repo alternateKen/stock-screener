@@ -122,6 +122,9 @@ Re-running the same stocks doesn't count again against the monthly unique-securi
 
 The macro dashboard's Bloomberg files (Fed pricing, credit, economic calendar, index weights) are **no longer updated** by the sync, to save the allowance. They keep their last values.
 
+### Worksheet probe (optional)
+Double-click **`probe_worksheets.bat`** and press Enter. It checks whether the API can read one of your Security Worksheets (`W <GO>`) by name, which would let the daily sync add new worksheet names to the Inbox by itself. It uploads nothing; a successful answer costs about 24 securities (W45 Alpha's members, already counted this month). Send the window to Claude.
+
 ### Good to know
 - **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, stopping rather than going over. Every run prints its totals, e.g. `Bloomberg allowance used by this sync: 840 unique securities this month`. A full run is about 770 securities (your theme stocks and the Asian broad-screen lists) and roughly 10,000 hits. Running daily adds no securities (the same stock counts once a month) and uses about 3% of the daily hits, so daily runs plus extra runs fit easily. `run_test.bat` costs almost nothing (5 stocks).
 - **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices).
