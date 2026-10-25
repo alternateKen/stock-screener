@@ -93,6 +93,7 @@ class Worksheets(unittest.TestCase):
         self.assertTrue(b.same_company("Commonwealth Bank of Australi", "Commonwealth Bank of Australia"))
         self.assertTrue(b.same_company("DBS Group Holdings Ltd", "DBS Group"))
         self.assertTrue(b.same_company("BHP GROUP LTD-ADR", "BHP Group"))
+        self.assertTrue(b.same_company("Johnson Controls Internationa", "JOHNSON CONTROLS INTERNATION"))
         self.assertFalse(b.same_company("Keppel REIT", "Keppel"))
         self.assertFalse(b.same_company("Samsung Electronics Co Ltd", "Samsung Electro-Mechanics"))
         self.assertEqual(b.ws_candidates("3308", "CN"), ["3308 HK", "003308 CH"])

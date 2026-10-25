@@ -573,7 +573,10 @@ def same_company(a, b):
     if len(short) < 2 and ka != kb:
         return False
     head, last = short[:-1], short[-1]
-    return long_[:len(head)] == head and long_[len(head)].startswith(last) if len(long_) > len(head) else ka == kb
+    if len(long_) <= len(head) or long_[:len(head)] != head:
+        return False
+    other = long_[len(head)]   # either name may be the one cut shorter ('internationa' vs 'internation')
+    return other.startswith(last) or (len(long_) == len(short) and last.startswith(other))
 
 
 def site_index(gh):
