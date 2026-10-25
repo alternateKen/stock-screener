@@ -38,6 +38,8 @@ COP | ConocoPhillips
 HAL | Halliburton
 SLB | SLB
 PTTGC TB | PTT Global Chemical (Thailand)
+SU US | Suncor Energy
+OBE US | Obsidian Energy
 
 [Metals & Miners]
 GDX | VanEck Gold Miners ETF
@@ -49,6 +51,8 @@ SCCO | Southern Copper
 NUE | Nucor
 AA | Alcoa
 LYC AU | Lynas Rare Earths (Australia)
+GSVR.V | Guanajuato Silver (Canada)
+PGDC.V | Patagonia Gold (Canada)
 
 [Defense]
 ITA | iShares Aerospace & Defense ETF

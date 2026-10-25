@@ -125,6 +125,19 @@ class Signals(unittest.TestCase):
         self.assertEqual(screen.short_trend(bounce[-1], screen.ema_series(bounce, 9), screen.ema_series(bounce, 21))["dir"], "mixed")
         self.assertIsNone(screen.short_trend(10.0, [None] * 5, [None] * 5))
 
+    def test_tiers_adr_and_history(self):
+        self.assertEqual(screen.tier(3, 2, 1), "lead")
+        self.assertEqual(screen.tier(1, 2, 3), "lag")
+        self.assertEqual(screen.tier(3, 1, 2), "med")
+        self.assertIsNone(screen.tier(3, 2, None))
+        self.assertAlmostEqual(screen.adr_pct([110.0] * 25, [100.0] * 25), 10.0)
+        r = screen.analyse(bars([100.0 + i for i in range(260)]), None)
+        self.assertEqual(r["tier"], "lead")
+        self.assertAlmostEqual(r["adr"], (1.01 / 0.99 - 1) * 100)
+        rows = [{"_tierh": {"2026-10-01": "lead", "2026-10-02": "lag"}}, {"_tierh": {"2026-10-01": "lead", "2026-10-02": "med"}},
+                {"_tierh": {"2026-10-02": "lag"}}]   # 1 Oct: only 2 of 3 traded (below 80%), so it is left out
+        self.assertEqual(screen.leader_history(rows), {"d": ["2026-10-02"], "lead": [0], "med": [1], "lag": [2]})
+
     def test_adjustments(self):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "adj.txt")

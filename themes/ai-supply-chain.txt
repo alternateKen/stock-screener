@@ -31,6 +31,11 @@ TER | Teradyne
 7735 JT | SCREEN Holdings
 042700 KP | Hanmi Semiconductor
 522 HK | ASMPT
+FORM | FormFactor
+AEHR | Aehr Test Systems
+PDFS | PDF Solutions
+AIXA GY | AIXTRON (Germany)
+BESI NA | BE Semiconductor Industries (Netherlands)
 
 [Memory & Storage]
 MU | Micron
@@ -53,6 +58,7 @@ GFS | GlobalFoundries
 3711 TT | ASE Technology
 AMKR | Amkor
 0981 HK | SMIC
+SOI FP | Soitec (France)
 
 [Networking & Optics]
 ANET | Arista Networks
@@ -67,6 +73,11 @@ FN | Fabrinet
 5803 JT | Fujikura
 5801 JT | Furukawa Electric
 6869 HK | YOFC (Yangtze Optical Fibre)
+AAOI | Applied Optoelectronics
+AXTI | AXT
+SMTC | Semtech
+IQE LN | IQE (UK)
+SIVE SS | Sivers Semiconductors (Sweden)
 
 [PCBs, Substrates & CCL]
 4062 JT | Ibiden
@@ -103,6 +114,7 @@ SU FP | Schneider Electric
 010120 KP | LS Electric
 298040 KP | Hyosung Heavy Industries
 3324 TT | Auras Technology
+HPS/A CN | Hammond Power Solutions (Canada)
 
 [Power Generation]
 CEG | Constellation Energy

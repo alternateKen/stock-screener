@@ -107,7 +107,7 @@ load(()=>{
   document.getElementById('main').innerHTML=marketPanel()+`<section id="themes"><h2>Themes</h2><div class="cards">${themeCards()}</div>
     <div class="note">Each theme is one file in the themes/ folder of the GitHub repository: edit it with the pencil icon and the site rebuilds itself. New tickers can go in themes/inbox.txt.</div></section>`
     +signalsPanel()+copyBlock('claude-brief','Cross-theme brief with Claude')+`<section><h2>About</h2><div class="note">Trend score 0-6: one point each for price above 50d, above 200d, 50d above 200d, MACD above signal, RSI above 50, and beating the S&amp;P 500 over 3 months. All data from Yahoo Finance (free, may be delayed); overseas prices in local currency. Not investment advice.</div>${errorsBlock()}</section>`;
-  document.getElementById('nav').innerHTML=[['market','Market'],['themes','Themes'],...D.themes.map(t=>['theme.html?t='+t.slug,t.title]),['screen.html','Signals'],['claude-brief','Claude']]
+  document.getElementById('nav').innerHTML=[['market','Market'],['themes','Themes'],...D.themes.map(t=>['theme.html?t='+t.slug,t.title]),['leaders.html','Leaders'],['screen.html','Signals'],['claude-brief','Claude']]
     .map(([i,l])=>`<a href="${i.includes('.html')?i:'#'+i}">${esc(l)}</a>`).join('');
   wireCopy(briefText);
 });

@@ -99,6 +99,7 @@ C | Citigroup
 WFC | Wells Fargo
 SCHW | Charles Schwab
 SPGI | S&P Global
+HOOD | Robinhood Markets
 
 [Industrials]
 GE | GE Aerospace

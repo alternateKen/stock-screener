@@ -57,6 +57,7 @@
 6976 JT | Taiyo Yuden
 6770 JT | Alps Alpine
 7751 JT | Canon
+6762 JP | TDK
 
 [Industrials & Automation]
 6501 JT | Hitachi
@@ -66,6 +67,7 @@
 6407 JT | CKD
 6861 JT | Keyence
 5332 JT | TOTO
+6273 JP | SMC
 
 [Trading, Shipping & Steel]
 8058 JT | Mitsubishi Corp

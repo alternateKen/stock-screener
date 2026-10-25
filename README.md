@@ -76,6 +76,9 @@ About 6:15am New York time (after every Asian market has closed), then every 30 
 `docs/` (the pages: `index.html`, `theme.html`, `screen.html`, `chart.html`, plus `common.js`, `style.css` and `vendor/` with TradingView's open-source Lightweight Charts library, Apache 2.0),
 `themes/*.txt` (your lists), `universe.txt` (broad screen), `.github/workflows/update.yml` (schedule).
 
+## High-ADR leaders (`leaders.html`)
+A fixed list in `leaders.txt` (Quantum, Space, AI, Crypto, Semis, plus mega-caps as the benchmark), chosen for a 20-day ADR above 5% and $20M+ traded a day. Every rebuild sorts them into tiers by their EMAs, as Kristjan Qullamaggie and Martin Luk do: **Lead** (9 > 21 > 50 EMA), **Lagging** (9 < 21 < 50 EMA) and **Mediocre** (anything else). The page tracks the tier counts over 120 sessions as a market-health gauge: when Lead shrinks and Lagging expands, stop buying breakouts, reduce size and look for shorts on bounces. The list is not a theme, so the Bloomberg sync does not read it.
+
 ## Bloomberg
 `bloomberg/bbg_sync.py` runs on the PC where you're logged in to Bloomberg (your main terminal). Windows Task Scheduler starts it every 15 minutes, but it only does anything once a day (the first time Bloomberg is logged in on a weekday from 05:30, until 21:00), plus whenever you double-click `run_now.bat`. It updates the screener's **Street** column: Bloomberg consensus as derived numbers only (upside to target, % Buy, 4-week EPS revisions), and Bloomberg's 50 / 200-day averages for the ⚠ data check. It stays inside the Bloomberg API allowance (under 2,500 unique securities a month). The macro dashboard's Bloomberg files are no longer updated by it.
 

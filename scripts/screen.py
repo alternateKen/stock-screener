@@ -18,6 +18,7 @@ WORKERS = 8
 EMAS = (9, 21, 50, 100, 200)   # exponential averages, on daily and on weekly closes
 EMA_SLOPE = 5                  # an EMA is rising (falling) if it is above (below) its value this many bars ago
 KEEP = 504                     # two years of sessions for everything except the EMAs, which use the full five years
+TIER_DAYS = 120                # sessions of Lead / Mediocre / Lagging history kept for the leaders page's market-health chart
 
 
 def get(url, tries=2, timeout=12):
@@ -101,6 +102,20 @@ def short_trend(last, e9, e21):
     return {"dir": d, "why": why}
 
 
+def tier(e9, e21, e50):
+    """Qullamaggie / Martin Luk style EMA tiers: lead = 9 > 21 > 50 EMA (clean uptrend), lag = 9 < 21 < 50 (clean
+    downtrend), med = anything in between (no clean direction). None while the 50-day EMA is not formed yet."""
+    if None in (e9, e21, e50):
+        return None
+    return "lead" if e9 > e21 > e50 else "lag" if e9 < e21 < e50 else "med"
+
+
+def adr_pct(highs, lows, n=20):
+    """Average daily range over the last n sessions, % (mean of high / low, minus 1), as Qullamaggie screens it."""
+    pairs = [(h, l) for h, l in zip(highs[-n:], lows[-n:]) if h and l]
+    return (sum(h / l for h, l in pairs) / len(pairs) - 1) * 100 if pairs else None
+
+
 def rsi14(closes):
     """Wilder RSI(14), the same smoothing TradingView uses by default."""
     if len(closes) < 15:
@@ -181,6 +196,8 @@ def analyse(bars, spx=None, now=None):
     slope = lambda s: None if s[-1] is None or len(s) <= EMA_SLOPE or s[-1 - EMA_SLOPE] is None else (1 if s[-1] > s[-1 - EMA_SLOPE] else -1)   # noqa: E731
     ema["eslope"] = {**{f"d{n}": slope(de[n]) for n in EMAS}, **{f"w{n}": slope(we[n]) for n in EMAS}}
     sterm = short_trend(closes[-1], de[9], de[21])
+    tiers = {datetime.fromtimestamp(t, timezone.utc).date().isoformat(): tier(a, b, c)
+             for t, a, b, c in zip(ts[-TIER_DAYS:], de[9][-TIER_DAYS:], de[21][-TIER_DAYS:], de[50][-TIER_DAYS:])}
     touches = list(ema_touches(de, highs[-1], lows[-1], "day")) + (list(ema_touches(we, wh[-1], wl[-1], "week")) if wc else [])
     if len(closes) > KEEP:
         ts, closes, highs, lows, vols = ts[-KEEP:], closes[-KEEP:], highs[-KEEP:], lows[-KEEP:], vols[-KEEP:]
@@ -206,7 +223,9 @@ def analyse(bars, spx=None, now=None):
         "last": last, "prev": prev, "pct": pct(last, prev), "w1": pct(last, ago(5)), "m1": pct(last, ago(21)),
         "m3": pct(last, ago(63)), "ytd": pct(last, ytd_base),
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
-        "ma100": sma_series(closes, 100)[-1], **ema, "sterm": sterm,
+        "ma100": sma_series(closes, 100)[-1], **ema, "sterm": sterm, "adr": adr_pct(highs, lows),
+        "tier": tier(ema["ema9"], ema["ema21"], ema["ema50"]),
+        "_tierh": tiers,   # tier by date for the leaders page's history; removed in build so it never reaches data.json
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
         # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (daily) numbers;
         # removed again in load_consensus so it never reaches data.json
@@ -757,13 +776,15 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
             themes.append(t)
     themes.sort(key=lambda t: (t["order"], t["title"]))
     universe = read_list(os.path.join(ROOT, "universe.txt"))
+    lpath = os.path.join(ROOT, "leaders.txt")   # the high-ADR leaders list (leaders.html): fetched like a theme, not a theme
+    leaders = read_list(lpath) if os.path.exists(lpath) else {"title": None, "groups": []}
     if load_universe:
         fill_universe(universe, errors)
         borrow_sectors(universe)
 
     # every stock is fetched once, however many themes and universes it is in
     jobs = {}
-    for coll, with_news in ((themes, True), ([universe], False)):
+    for coll, with_news in ((themes, True), ([universe], False), ([leaders], False)):
         for t in coll:
             for g in t["groups"]:
                 for it in g["items"]:
@@ -835,6 +856,9 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     street = load_consensus(stocks, errors)
     for r in stocks.values():
         r.pop("_mah", None)
+    lhist = leader_history([stocks[it["k"]] for g in leaders["groups"] for it in g["items"] if it["k"] in stocks])
+    for r in stocks.values():
+        r.pop("_tierh", None)
     # TradingView's technical rating, as a second opinion next to our own indicators
     overrides = {it["k"]: it["exch"] for coll in (themes, [universe]) for t in coll for g in t["groups"] for it in g["items"] if it["exch"]}
     for k, r in stocks.items():
@@ -881,6 +905,9 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
                       "index_q": ({k: v for k, v in analyse(idx[tuple(g["index"])]).items() if k in ("last", "pct", "m1", "m3", "ytd")}
                                   if g["index"] and idx.get(tuple(g["index"])) else None)}
                      for g in universe["groups"] if g["items"]],
+        "leaders": {"title": leaders["title"] or "High-ADR Leaders",
+                    "groups": [{"name": g["name"], "items": items(g)} for g in leaders["groups"] if g["items"]],
+                    "hist": lhist},
         "stocks": stocks,
         "street_asof": street,
         "errors": errors,
@@ -915,6 +942,21 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     if named:   # tickers added without a company name: shown here so they can be named in the theme file if wanted
         print(f"named from Yahoo ({len(named)}): " + "; ".join(f"{k} = {v}" for k, v in sorted(named.items())))
     return data
+
+
+def leader_history(rows):
+    """Number of leaders in each EMA tier on each of the last TIER_DAYS sessions -> {"d": [dates], "lead", "med", "lag": [counts]}.
+    Only sessions on which at least 80% of the list traded count (a holiday in one market should not look like a collapse)."""
+    days = sorted({d for r in rows for d in r.get("_tierh", {})})
+    out = {"d": [], "lead": [], "med": [], "lag": []}
+    for d in days:
+        ts = [r["_tierh"].get(d) for r in rows]
+        if sum(1 for x in ts if x) < 0.8 * len(rows):
+            continue
+        out["d"].append(d)
+        for k in ("lead", "med", "lag"):
+            out[k].append(sum(1 for x in ts if x == k))
+    return out
 
 
 def one_idx(cands, fetch):

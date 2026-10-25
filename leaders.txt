@@ -1,0 +1,83 @@
+# HIGH-ADR LEADERS: a fixed list of fast movers in six sectors, sorted into Lead / Mediocre / Lagging tiers by
+# their 9, 21 and 50-day EMAs on every rebuild (leaders.html). Not a theme: the Bloomberg sync does not read
+# this file, so it costs no Bloomberg allowance.
+#
+# Chosen on 25 Oct 2026: 20-day ADR (average daily range, high / low) above 5% and at least $20M traded a day.
+# Mega-caps are the exception: they are the market's benchmark, kept whatever their ADR.
+# The page marks any name whose ADR has since fallen below 5%; edit this list by hand to add or drop names.
+#
+# Format as in the theme files:  [Sector]  then  TICKER | Company name
+@title High-ADR Leaders
+
+[Quantum]
+IONQ | IonQ
+RGTI | Rigetti Computing
+QBTS | D-Wave Quantum
+QUBT | Quantum Computing Inc
+INFQ | Infleqtion
+
+[Space]
+RKLB | Rocket Lab
+ASTS | AST SpaceMobile
+LUNR | Intuitive Machines
+RDW | Redwire
+PL | Planet Labs
+FLY | Firefly Aerospace
+KRMN | Karman Holdings
+VOYG | Voyager Technologies
+VSAT | Viasat
+
+[AI]
+AI | C3.ai
+BBAI | BigBear.ai
+TEM | Tempus AI
+CRWV | CoreWeave
+NBIS | Nebius Group
+APLD | Applied Digital
+SMCI | Super Micro Computer
+CLS | Celestica
+
+[Crypto]
+COIN | Coinbase
+MSTR | Strategy
+MARA | MARA Holdings
+RIOT | Riot Platforms
+CLSK | CleanSpark
+HUT | Hut 8
+IREN | IREN
+CIFR | Cipher Digital
+WULF | TeraWulf
+CORZ | Core Scientific
+BTDR | Bitdeer Technologies
+GLXY | Galaxy Digital
+CRCL | Circle Internet Group
+BMNR | Bitmine Immersion Technologies
+SBET | Sharplink
+BLSH | Bullish
+
+[Semis]
+MRVL | Marvell Technology
+ALAB | Astera Labs
+CRDO | Credo Technology
+AAOI | Applied Optoelectronics
+AXTI | AXT
+AEHR | Aehr Test Systems
+SMTC | Semtech
+FORM | FormFactor
+LITE | Lumentum
+COHR | Coherent
+SNDK | Sandisk
+STX | Seagate Technology
+NVTS | Navitas Semiconductor
+WOLF | Wolfspeed
+POET | POET Technologies
+
+[Mega-cap]
+AAPL | Apple
+MSFT | Microsoft
+NVDA | NVIDIA
+GOOGL | Alphabet
+AMZN | Amazon
+META | Meta Platforms
+TSLA | Tesla
+AVGO | Broadcom

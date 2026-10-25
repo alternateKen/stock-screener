@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaders · Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+<style>
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.tiers .panel h3{display:flex;justify-content:space-between}
+.lrow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.lrow:first-of-type{border-top:0}
+.lrow small{color:var(--mute);font-size:11px}
+.lrow .r{text-align:right;font-variant-numeric:tabular-nums}
+.health{font-size:20px;font-weight:600}
+.legend-k{display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:12px;color:var(--mute)}
+.legend-k i{display:inline-block;width:14px;height:3px;border-radius:2px}
+svg.hist{width:100%;height:auto;display:block}
+svg.hist text{font-size:10px;fill:var(--mute)}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<script src="common.js"></script>
+<script>
+header('High-ADR Leaders','<a href="index.html">&larr; All themes</a> &nbsp;·&nbsp; ');
+const TIERS=[['lead','Lead','9 EMA > 21 EMA > 50 EMA: strongest names in clean uptrends. Long breakouts and pullbacks.','up'],
+  ['med','Mediocre','Mixed EMAs: no clean direction. Wait for them to resolve.','mu'],
+  ['lag','Lagging','9 EMA < 21 EMA < 50 EMA: weakest names in clean downtrends. Short setups on bounces.','dn']];
+const WINDOW=5;   // sessions over which "shrinking" and "expanding" are measured
+let L=null;
+
+function rows(){return L.groups.flatMap(g=>rowsOf(g.items,{sector:g.name})).filter(r=>!r.missing)}
+const vs21=r=>r.ema21?(r.last/r.ema21-1)*100:null;
+
+// market health from the tier counts: the rule is to stop buying breakouts when Lead shrinks and Lagging expands
+function health(){
+  const h=L.hist,n=h.d.length;if(n<2)return null;
+  const i=n-1,j=Math.max(0,n-1-WINDOW),lead=h.lead[i],lag=h.lag[i],dLead=lead-h.lead[j],dLag=lag-h.lag[j];
+  let s;
+  if(lag>lead)s=dLead>0&&dLag<0?['Improving','mu','Lagging still outnumbers Lead, but Lead is growing and Lagging shrinking. Breakouts may start to work again: keep size small until Lead outnumbers Lagging.']
+    :['Risk-off','dn','Lagging outnumbers Lead. Stop buying breakouts, reduce position size, and look for short setups on bounces in Lagging names.'];
+  else s=dLead<0&&dLag>0?['Weakening','dn','Lead is shrinking and Lagging is expanding. Stop buying new breakouts, reduce position size, and watch Lagging names for short setups.']
+    :['Healthy','up','Lead outnumbers Lagging and is not shrinking. Breakouts and pullbacks to the 9 / 21 EMA in Lead names are working conditions.'];
+  return {name:s[0],cls:s[1],text:s[2],lead,lag,med:h.med[i],dLead,dLag,dMed:h.med[i]-h.med[j],since:h.d[j]};
+}
+function histChart(){
+  const h=L.hist,n=h.d.length;if(n<2)return '<div class="empty">Not enough history yet.</div>';
+  const W=640,H=180,pl=26,pr=8,pt=8,pb=20,max=Math.max(...h.lead,...h.med,...h.lag,1);
+  const x=i=>pl+i/(n-1)*(W-pl-pr),y=v=>pt+(1-v/max)*(H-pt-pb);
+  const line=(k,c)=>`<polyline fill="none" stroke="var(--${c})" stroke-width="${k==='med'?1.5:2}" ${k==='med'?'stroke-dasharray="4 3"':''} points="${h[k].map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ')}"/>`;
+  const grid=[0,.5,1].map(f=>{const v=Math.round(max*f);return `<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pl-4}" y="${y(v)+3}" text-anchor="end">${v}</text>`}).join('');
+  const ticks=[0,Math.floor((n-1)/2),n-1].map(i=>`<text x="${x(i)}" y="${H-5}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}">${h.d[i].slice(5)}</text>`).join('');
+  return `<svg class="hist" viewBox="0 0 ${W} ${H}" role="img" aria-label="Number of leaders in each tier over the last ${n} sessions">${grid}${ticks}${line('med','mute')}${line('lag','dn')}${line('lead','up')}</svg>
+   <div style="margin-top:4px"><span class="legend-k"><i style="background:var(--up)"></i>Lead</span><span class="legend-k"><i style="background:var(--mute)"></i>Mediocre</span><span class="legend-k"><i style="background:var(--dn)"></i>Lagging</span></div>`;
+}
+function healthHTML(){
+  const s=health(),R=rows();
+  if(!s)return `<section id="health"><h2>Market health</h2><div class="empty">No tier history yet.</div></section>`;
+  const chg=(v,good)=>`<span class="${v===0?'mu':(v>0)===good?'up':'dn'}">${v>0?'+':''}${v}</span>`;
+  return `<section id="health"><h2>Market health · ${R.length} leaders</h2>
+   <div class="cards">
+    <div class="card"><div class="nm">Status</div><div class="health ${s.cls}">${s.name}</div><div class="note" style="margin-top:4px">${esc(s.text)}</div></div>
+    <div class="card"><div class="nm">Lead</div><div class="big up">${s.lead}</div><div class="row"><span>vs ${WINDOW} sessions ago</span><b>${chg(s.dLead,true)}</b></div></div>
+    <div class="card"><div class="nm">Mediocre</div><div class="big">${s.med}</div><div class="row"><span>vs ${WINDOW} sessions ago</span><b>${chg(s.dMed,true)}</b></div></div>
+    <div class="card"><div class="nm">Lagging</div><div class="big dn">${s.lag}</div><div class="row"><span>vs ${WINDOW} sessions ago</span><b>${chg(s.dLag,false)}</b></div></div>
+   </div>
+   <h3>Tier counts, last ${L.hist.d.length} sessions</h3>${histChart()}
+   <div class="note">Status rule: Lagging above Lead = Risk-off (Improving if Lead is growing and Lagging shrinking over ${WINDOW} sessions); Lead at or above Lagging = Healthy, or Weakening if Lead shrank and Lagging grew over ${WINDOW} sessions.</div></section>`;
+}
+function sectorsHTML(){
+  const R=rows();
+  const body=L.groups.map(g=>{const rs=R.filter(r=>r.sector===g.name),c=k=>rs.filter(r=>r.tier===k).length,n=rs.length||1;
+    return `<tr><td class="nm">${esc(g.name)}<small>${rs.length} names</small></td><td class="up">${c('lead')}</td><td>${c('med')}</td><td class="dn">${c('lag')}</td>
+     <td style="min-width:120px"><div class="bar" title="${c('lead')} lead, ${c('med')} mediocre, ${c('lag')} lagging"><i style="width:${c('lead')/n*100}%;background:var(--up)"></i><i style="width:${c('med')/n*100}%;background:var(--mute)"></i><i style="width:${c('lag')/n*100}%;background:var(--dn)"></i></div></td></tr>`}).join('');
+  return `<section id="sectors"><h2>By sector</h2><div class="scroll"><table><tr><th style="text-align:left">Sector</th><th>Lead</th><th>Mediocre</th><th>Lagging</th><th></th></tr>${body}</table></div></section>`;
+}
+function tiersHTML(){
+  const R=rows();
+  const item=r=>{const lowAdr=r.adr!=null&&r.adr<5&&r.sector!=='Mega-cap',d=vs21(r);
+    return `<div class="lrow"><div><b>${chartLink(r,esc(r.sym))}</b> <small>${esc(r.label)} · ${esc(r.sector)}</small></div>
+     <div class="r ${cls(r.m1)}">${pc(r.m1)}<small> 1M</small></div>
+     <div><small title="20-day average daily range">ADR <span class="${lowAdr?'warn':''}">${r.adr==null?'–':r.adr.toFixed(1)+'%'}</span>${lowAdr?' (below 5%)':''}</small></div>
+     <div class="r"><small title="Distance from the 21-day EMA">${d==null?'':(d>0?'+':'')+d.toFixed(1)+'% vs 21 EMA'}</small></div></div>`};
+  const cols=TIERS.map(([k,l,why,c])=>{const rs=R.filter(r=>r.tier===k).sort((a,b)=>k==='lag'?(a.m1||0)-(b.m1||0):(b.m1||0)-(a.m1||0));
+    return `<div class="panel"><h3><span class="${c}">${l}</span><span>${rs.length}</span></h3><div class="note" style="margin:0 0 6px">${esc(why)}</div>${rs.map(item).join('')||'<div class="empty">None right now.</div>'}</div>`}).join('');
+  return `<section id="tiers"><h2>Tiers</h2><div class="tiers">${cols}</div>
+   <div class="note">The list is fixed (leaders.txt: 20-day ADR above 5% and $20M+ traded a day when chosen; mega-caps kept as the benchmark). Tiers move every rebuild. Sorted by 1-month change: strongest first in Lead and Mediocre, weakest first in Lagging. "vs 21 EMA" = how stretched the price is from the 21-day EMA.</div></section>`;
+}
+function briefText(){
+  const s=health(),R=rows(),out=[];
+  out.push('Act as a momentum swing trader in the style of Kristjan Qullamaggie and Martin Luk. Using ONLY the data below (no invented numbers or news):');
+  out.push('1. Read market health from the tier counts and their trend: should I be buying breakouts, sitting out, or looking for shorts?');
+  out.push('2. In the Lead tier: which names look best for a breakout or a pullback entry to the 9 / 21 EMA, and which are too extended?');
+  out.push('3. In the Lagging tier: which names look best for short setups on a bounce into the 9 / 21 EMA?');
+  out.push('4. Which sectors are leading or lagging? Be concise, short bullets.','',freshness());
+  if(s)out.push(`Market health: ${s.name}. Lead ${s.lead} (${s.dLead>=0?'+':''}${s.dLead} vs ${WINDOW} sessions ago), Mediocre ${s.med}, Lagging ${s.lag} (${s.dLag>=0?'+':''}${s.dLag}).`);
+  const h=L.hist;out.push('Tier counts by date (lead/mediocre/lagging): '+h.d.slice(-30).map((d,i,a)=>{const k=h.d.length-a.length+i;return `${d} ${h.lead[k]}/${h.med[k]}/${h.lag[k]}`}).join('; '));
+  TIERS.forEach(([k,l])=>{out.push('',`## ${l}`);R.filter(r=>r.tier===k).forEach(r=>out.push(`${lineFor(r)} | SECTOR ${r.sector} | ADR ${f2(r.adr,1)}% | vs 21 EMA ${f2(vs21(r),1)}%`))});
+  return out.join('\n');
+}
+load(()=>{
+  L=D.leaders;
+  if(!L||!L.groups.length){document.getElementById('main').innerHTML='<section><h2>No leaders list</h2><p>Add tickers to leaders.txt in the repository.</p></section>';return}
+  document.querySelector('header h1').textContent=L.title;
+  document.getElementById('main').innerHTML=healthHTML()+sectorsHTML()+tiersHTML()+copyBlock('claude-brief','Leaders brief with Claude')+`<section>${errorsBlock()}</section>`;
+  wireCopy(briefText);
+  document.getElementById('nav').innerHTML=[['health','Health'],['sectors','Sectors'],['tiers','Tiers'],['claude-brief','Claude']].map(([i,l])=>`<a href="#${i}">${l}</a>`).join('');
+});
+</script>
+</body>
+</html>
