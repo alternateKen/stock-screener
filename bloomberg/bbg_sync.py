@@ -23,7 +23,7 @@ OWNER = "alternateKen"
 SCREENER_REPO = "stock-screener"
 WINDOW = ("07:00", "21:00")            # this PC's clock; weekdays only
 SLOTS = ["08:30", "16:30", "20:00"]    # the daily run happens in the first of these you are logged in for
-CONSENSUS_FROM = date(2026, 10, 26)    # daily runs start on this Monday
+CONSENSUS_FROM = date(2026, 10, 25)    # runs allowed from this day (the daily schedule itself is weekdays only)
 # Bloomberg Anywhere API allowance (the owner's ceiling: under 3,000 unique securities a month, 400,000 hits a day).
 # The sync keeps its own count and stops rather than go past these.
 BUDGET_SECS_MONTH = 2500
