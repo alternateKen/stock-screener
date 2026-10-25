@@ -11,27 +11,3 @@
 @order 90
 
 [Unsorted]
-CRWD US | Crowdstrike Holdings Inc
-BTDR US | Bitdeer Technologies Group
-CIFR US | Cipher Digital Inc
-CL US | Colgate-Palmolive Co
-TGT US | Target Corp
-MMM US | 3M Co
-ADBE US | Adobe Inc
-AMGN US | Amgen Inc
-ADI US | Analog Devices Inc
-ADP US | Automatic Data Processing Inc
-BNY US | Bank of New York Mellon
-GLW US | Corning Inc
-CMI US | Cummins Inc
-GILD US | Gilead Sciences Inc
-IREN US | IREN Ltd
-JCI US | Johnson Controls Internationa
-MPC US | Marathon Petroleum Corp
-MCK US | McKesson Corp
-PFE US | Pfizer Inc
-PGR US | Progressive Corp/The
-MSTR US | Strategy Inc
-SYK US | Stryker Corp
-URI US | United Rentals Inc
-VRTX US | Vertex Pharmaceuticals Inc

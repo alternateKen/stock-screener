@@ -41,6 +41,8 @@ SAP UN | SAP (ADR)
 ASML NA | ASML (Amsterdam)
 TER | Teradyne
 COHU | Cohu
+ADBE | Adobe
+ADI | Analog Devices
 
 [Communication Services]
 GOOGL | Alphabet
@@ -71,6 +73,8 @@ KO | Coca-Cola
 PEP | PepsiCo
 PM | Philip Morris International
 MDLZ | Mondelez
+CL | Colgate-Palmolive
+TGT | Target
 
 [Health Care]
 LLY | Eli Lilly
@@ -84,6 +88,12 @@ ABT | Abbott Laboratories
 NVS | Novartis (ADR)
 NVO | Novo Nordisk (ADR)
 RHHBY | Roche (ADR)
+AMGN | Amgen
+GILD | Gilead Sciences
+VRTX | Vertex Pharmaceuticals
+PFE | Pfizer
+SYK | Stryker
+MCK | McKesson
 
 [Financials]
 BRK/B US | Berkshire Hathaway
@@ -101,6 +111,8 @@ SCHW | Charles Schwab
 SPGI | S&P Global
 HOOD | Robinhood Markets
 MCO | Moody's
+BNY | Bank of New York Mellon
+PGR | Progressive
 
 [Industrials]
 GE | GE Aerospace
@@ -112,6 +124,9 @@ BA | Boeing
 ETN | Eaton
 UNP | Union Pacific
 SPCX | SpaceX (Space Exploration Technologies)
+MMM | 3M
+ADP | Automatic Data Processing
+URI | United Rentals
 
 [Energy]
 XOM | Exxon Mobil
@@ -122,6 +137,7 @@ SLB | SLB
 PSX | Phillips 66
 WMB | Williams Companies
 SHEL | Shell (ADR)
+MPC | Marathon Petroleum
 
 [Utilities]
 NEE | NextEra Energy

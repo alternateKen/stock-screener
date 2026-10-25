@@ -94,3 +94,7 @@ SOFI | SoFi Technologies
 # Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
 # Bloomberg style codes work ("BA/ LN" = BAE Systems in London, "RHM GY" = Rheinmetall in Germany).
 # Only tickers here, never position sizes: this repository is public.
+
+[Crypto]
+MSTR | Strategy
+BTDR | Bitdeer Technologies

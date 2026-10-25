@@ -78,6 +78,7 @@ AXTI | AXT
 SMTC | Semtech
 IQE LN | IQE (UK)
 SIVE SS | Sivers Semiconductors (Sweden)
+GLW | Corning
 
 [PCBs, Substrates & CCL]
 4062 JT | Ibiden
@@ -115,6 +116,7 @@ SU FP | Schneider Electric
 298040 KP | Hyosung Heavy Industries
 3324 TT | Auras Technology
 HPS/A CN | Hammond Power Solutions (Canada)
+JCI | Johnson Controls
 
 [Power Generation]
 CEG | Constellation Energy
@@ -126,6 +128,7 @@ OKLO | Oklo
 BE | Bloom Energy
 034020 KP | Doosan Enerbility
 U96.SI | Sembcorp Industries (Singapore)
+CMI | Cummins
 
 [Hyperscalers & Neoclouds]
 MSFT | Microsoft
@@ -139,3 +142,5 @@ NBIS | Nebius
 # Format:   [Basket name] starts a basket;  TICKER | Company name  one stock per line.
 # Bloomberg style codes work ("2330 TT", "0700 HK", "8035 JP", "300308 CH", "000660 KS", "SU FP").
 # Only tickers here, never position sizes: this repository is public.
+IREN | IREN
+CIFR | Cipher Digital

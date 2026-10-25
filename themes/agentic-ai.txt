@@ -44,6 +44,7 @@ NET | Cloudflare
 AKAM | Akamai
 DDOG | Datadog
 PANW | Palo Alto Networks
+CRWD | CrowdStrike
 
 [Agentic Payments]
 V | Visa
