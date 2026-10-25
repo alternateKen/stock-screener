@@ -76,6 +76,9 @@ About 6:15am New York time (after every Asian market has closed), then every 30 
 `docs/` (the pages: `index.html`, `theme.html`, `screen.html`, `chart.html`, plus `common.js`, `style.css` and `vendor/` with TradingView's open-source Lightweight Charts library, Apache 2.0),
 `themes/*.txt` (your lists), `universe.txt` (broad screen), `.github/workflows/update.yml` (schedule).
 
+## Technical brief (`brief.html`, `brief.json`)
+Every rebuild also writes `brief.json`: long setups (breakouts and new highs, Lead-tier pullbacks to the 9 / 21 EMA, bullish patterns within 3% of breaking out), short setups (breakdowns and new lows, Lagging-tier bounces into the 9 / 21 EMA, bearish patterns within 3% of breaking down), what improved or deteriorated since the previous session (tier changes, short-term trend turns), breadth, themes and the leaders' health. It covers the theme stocks and the leaders list, and the setup lists need about US$5M traded a day. `brief.html` shows it; the daily Claude brief in Notion is written from it.
+
 ## High-ADR leaders (`leaders.html`)
 A fixed list in `leaders.txt` (Quantum, Space, AI, Crypto, Semis, plus mega-caps as the benchmark), chosen for a 20-day ADR above 5% and $20M+ traded a day. Every rebuild sorts them into tiers by their EMAs, as Kristjan Qullamaggie and Martin Luk do: **Lead** (9 > 21 > 50 EMA), **Lagging** (9 < 21 < 50 EMA) and **Mediocre** (anything else). The page tracks the tier counts over 120 sessions as a market-health gauge: when Lead shrinks and Lagging expands, stop buying breakouts, reduce size and look for shorts on bounces. The list is not a theme, so the Bloomberg sync does not read it.
 

@@ -316,6 +316,13 @@ class RealFiles(unittest.TestCase):
             self.assertTrue(any(e.startswith("SNDK") for e in data["errors"]))
             with open(os.path.join(d, "data.json")) as fh:
                 json.load(fh)
+            with open(os.path.join(d, "brief.json")) as fh:
+                br = json.load(fh)
+            self.assertEqual(set(br["long"]), {"breakouts", "pullbacks", "near_breakout"})
+            self.assertEqual(set(br["short"]), {"breakdowns", "bounces", "near_breakdown"})
+            self.assertGreater(br["breadth"]["stocks"], 0)
+            self.assertEqual(sum(br["breadth"]["tiers"].values()) <= br["breadth"]["stocks"], True)
+            self.assertTrue(br["us_session"])
 
 
 if __name__ == "__main__":

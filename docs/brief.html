@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brief · Stock Screener</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:,">
+<style>
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
+td.why{white-space:normal;text-align:left;font-size:12px;min-width:200px}
+</style>
+</head>
+<body>
+<main id="main"></main>
+<script src="common.js"></script>
+<script>
+// The morning brief's facts (brief.json, written by scripts/screen.py build_brief): the same lists the daily Claude brief reads.
+header('Technical brief','<a href="index.html">&larr; All themes</a> &nbsp;·&nbsp; ');
+let B=null;
+const TIERW={lead:'Lead',med:'Mediocre',lag:'Lagging'};
+const tierCls=t=>t==='lead'?'up':t==='lag'?'dn':'mu';
+function table(id,title,rows,note){
+  const body=rows.map(c=>`<tr><td class="nm"><a class="stk" href="${chartUrl(c.k)}">${esc(c.sym)}</a><small>${esc(c.name)} · ${esc(c.where)}</small></td>
+    <td class="why">${esc(c.why)}</td><td class="${cls(c.day)}">${pc(c.day)}</td><td class="${cls(c.m1)} hide-sm">${pc(c.m1)}</td>
+    <td class="${cls(c.rs3)} hide-sm">${pts(c.rs3)}</td><td class="${tierCls(c.tier)}">${TIERW[c.tier]||'–'}</td>
+    <td class="hide-sm" style="text-align:left">${esc(c.trend||'–')}${c.short?`<small class="${c.short==='up'?'up':c.short==='down'?'dn':'mu'}" style="display:block;font-size:11px">short-term ${esc(c.short)}</small>`:''}</td>
+    <td class="hide-sm">${c.vs21==null?'–':(c.vs21>0?'+':'')+c.vs21.toFixed(1)+'%'}</td></tr>`).join('');
+  return `<section id="${id}"><h2>${esc(title)} · ${rows.length}</h2>${rows.length?`<div class="scroll"><table><tr><th style="text-align:left">Stock</th><th style="text-align:left">Why</th><th>Day</th><th class="hide-sm">1M</th><th class="hide-sm">vs S&amp;P 3M</th><th>Tier</th><th class="hide-sm" style="text-align:left">Trend</th><th class="hide-sm">vs 21 EMA</th></tr>${body}</table></div>`:'<div class="empty">None today.</div>'}${note?`<div class="note">${note}</div>`:''}</section>`;
+}
+function overview(){
+  const b=B.breadth,h=B.leaders.health,t=(o,k)=>`<span class="${tierCls(k)}">${o[k]}</span>`;
+  const d=(a,c)=>{const v=a-c;return `<span class="${v>0?'up':v<0?'dn':'mu'}">${v>0?'+':''}${v}</span>`};
+  return `<section id="overview"><h2>Overview · US session ${esc(B.us_session)}${B.intraday?' (intraday, provisional)':''}</h2><div class="cards">
+    <div class="card"><div class="nm">Leaders health</div><div class="big ${h&&h.status==='Healthy'?'up':h&&h.status==='Improving'?'mu':'dn'}">${h?h.status:'–'}</div>
+      ${h?`<div class="row"><span>Lead / Med / Lag</span><b>${h.lead} / ${h.med} / ${h.lag}</b></div><div class="row"><span>Lead, Lagging vs ${esc(h.since)}</span><b>${h.d_lead>0?'+':''}${h.d_lead}, ${h.d_lag>0?'+':''}${h.d_lag}</b></div>`:''}</div>
+    <div class="card"><div class="nm">Your lists: tiers (${b.stocks} stocks)</div><div class="big">${t(b.tiers,'lead')} / ${t(b.tiers,'med')} / ${t(b.tiers,'lag')}</div>
+      <div class="row"><span>vs previous session</span><b>${d(b.tiers.lead,b.tiers_prev.lead)} / ${d(b.tiers.med,b.tiers_prev.med)} / ${d(b.tiers.lag,b.tiers_prev.lag)}</b></div>
+      <div class="row"><span>vs 5 sessions ago</span><b>${d(b.tiers.lead,b.tiers_5d.lead)} / ${d(b.tiers.med,b.tiers_5d.med)} / ${d(b.tiers.lag,b.tiers_5d.lag)}</b></div></div>
+    <div class="card"><div class="nm">Above 50-day · 200-day</div><div class="big">${Math.round(b.above50/b.stocks*100)}% · ${Math.round(b.above200/b.stocks*100)}%</div>
+      <div class="row"><span>Improving / deteriorating today</span><b><span class="up">${B.counts.improving}</span> / <span class="dn">${B.counts.deteriorating}</span></b></div></div>
+    <div class="card"><div class="nm">S&amp;P 500</div><div class="big ${cls(B.spx.pct)}">${pc(B.spx.pct,2)}</div><div class="row"><span>1W · 1M</span><b>${pc(B.spx.w1)} · ${pc(B.spx.m1)}</b></div>
+      <div class="row"><span>Bloomberg consensus</span><b>${B.street_asof?esc(B.street_asof.slice(0,16).replace('T',' ')):'–'}</b></div></div></div>
+   <div class="note">Covers your theme stocks and the leaders list, with at least about US$5M traded a day for the setup lists. Tiers: Lead = 9 &gt; 21 &gt; 50 EMA, Lagging = 9 &lt; 21 &lt; 50 EMA, Mediocre = mixed.</div></section>`;
+}
+function themesHTML(){
+  const rows=B.themes.map(t=>{const n=t.n||1;return `<tr><td class="nm">${esc(t.theme)}<small>${t.n} stocks</small></td><td class="${cls(t.day)}">${pc(t.day,2)}</td><td class="${cls(t.w1)} hide-sm">${pc(t.w1)}</td><td class="${cls(t.m1)}">${pc(t.m1)}</td>
+    <td>${Math.round(t.above50/n*100)}%</td><td class="up">${t.tiers.lead} <small class="mu">(${t.tiers.lead-t.tiers_5d.lead>=0?'+':''}${t.tiers.lead-t.tiers_5d.lead})</small></td>
+    <td class="dn">${t.tiers.lag} <small class="mu">(${t.tiers.lag-t.tiers_5d.lag>=0?'+':''}${t.tiers.lag-t.tiers_5d.lag})</small></td></tr>`}).join('');
+  return `<section id="themes"><h2>Themes</h2><div class="scroll"><table><tr><th style="text-align:left">Theme</th><th>Day</th><th class="hide-sm">1W</th><th>1M</th><th>Above 50d</th><th>Lead (5d chg)</th><th>Lagging (5d chg)</th></tr>${rows}</table></div></section>`;
+}
+load(()=>{
+  fetch('brief.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('brief.json not built yet');return r.json()}).then(b=>{
+    B=b;
+    document.getElementById('main').innerHTML=overview()
+      +table('long-breakouts','Long: breakouts and new highs',B.long.breakouts,'Breakouts, 52-week highs, 50 / 200-day reclaims and golden crosses, not in the Lagging tier. Strongest relative strength first.')
+      +table('long-pullbacks','Long: Lead-tier pullbacks to the 9 / 21 EMA',B.long.pullbacks)
+      +table('long-near','Long: bullish patterns within 3% of breaking out',B.long.near_breakout)
+      +table('short-breakdowns','Short: breakdowns and new lows',B.short.breakdowns,'Breakdowns, 52-week lows, lost 50 / 200-day and death crosses, not in the Lead tier. Weakest first.')
+      +table('short-bounces','Short: Lagging-tier bounces into the 9 / 21 EMA',B.short.bounces)
+      +table('short-near','Short: bearish patterns within 3% of breaking down',B.short.near_breakdown)
+      +table('improving',`Improving since the previous session (${B.counts.improving})`,B.improving,'Tier upgrades (Lagging to Mediocre, Mediocre to Lead) and short-term trends turning up. Top 15 by relative strength.')
+      +table('deteriorating',`Deteriorating since the previous session (${B.counts.deteriorating})`,B.deteriorating,'Tier downgrades and short-term trends turning down. Weakest 15.')
+      +themesHTML()+`<section>${errorsBlock()}</section>`;
+    document.getElementById('nav').innerHTML=[['overview','Overview'],['long-breakouts','Long'],['short-breakdowns','Short'],['improving','Improving'],['deteriorating','Deteriorating'],['themes','Themes'],['leaders.html','Leaders']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
+  }).catch(e=>{document.getElementById('main').innerHTML=`<section><h2>Brief not available</h2><p>${esc(e.message)}</p></section>`});
+});
+</script>
+</body>
+</html>

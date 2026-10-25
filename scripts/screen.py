@@ -196,6 +196,7 @@ def analyse(bars, spx=None, now=None):
     slope = lambda s: None if s[-1] is None or len(s) <= EMA_SLOPE or s[-1 - EMA_SLOPE] is None else (1 if s[-1] > s[-1 - EMA_SLOPE] else -1)   # noqa: E731
     ema["eslope"] = {**{f"d{n}": slope(de[n]) for n in EMAS}, **{f"w{n}": slope(we[n]) for n in EMAS}}
     sterm = short_trend(closes[-1], de[9], de[21])
+    sterm_prev = short_trend(closes[-2], de[9][:-1], de[21][:-1]) if len(closes) > EMA_SLOPE + 2 else None
     tiers = {datetime.fromtimestamp(t, timezone.utc).date().isoformat(): tier(a, b, c)
              for t, a, b, c in zip(ts[-TIER_DAYS:], de[9][-TIER_DAYS:], de[21][-TIER_DAYS:], de[50][-TIER_DAYS:])}
     touches = list(ema_touches(de, highs[-1], lows[-1], "day")) + (list(ema_touches(we, wh[-1], wl[-1], "week")) if wc else [])
@@ -225,6 +226,10 @@ def analyse(bars, spx=None, now=None):
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
         "ma100": sma_series(closes, 100)[-1], **ema, "sterm": sterm, "adr": adr_pct(highs, lows),
         "tier": tier(ema["ema9"], ema["ema21"], ema["ema50"]),
+        "dv20": sum(c * (v or 0) for c, v in zip(closes[-20:], vols[-20:])) / max(1, len(closes[-20:])),   # traded value a day, local currency
+        "tier_prev": (list(tiers.values()) or [None])[-2] if len(tiers) > 1 else None,
+        "tier_5d": list(tiers.values())[-6] if len(tiers) > 5 else None,
+        "sterm_prev": (sterm_prev or {}).get("dir"),
         "_tierh": tiers,   # tier by date for the leaders page's history; removed in build so it never reaches data.json
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
         # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (daily) numbers;
@@ -899,6 +904,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     data = {
         "generated": datetime.now(timezone.utc).isoformat(),
         "spx": {k: spx.get(k) for k in ("last", "pct", "w1", "m1", "m3", "ytd", "intraday")} if spx else {},
+        "spx_asof": spx.get("asof") if spx else None,
         "themes": [{"slug": t["slug"], "title": t["title"], "description": t["description"],
                     "groups": [{"name": g["name"], "items": items(g)} for g in t["groups"] if g["items"]]} for t in themes],
         "universe": [{"name": g["name"], "index": (g["index"] or [None])[0], "items": items(g, True),
@@ -916,6 +922,8 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     path = os.path.join(out_dir, "data.json")
     with open(path, "w") as f:
         json.dump(data, f, separators=(",", ":"), default=lambda x: None)
+    with open(os.path.join(out_dir, "brief.json"), "w") as f:   # the morning brief's facts (brief.html, Claude)
+        json.dump(build_brief(data, stocks), f, separators=(",", ":"), default=lambda x: None)
     cdir = os.path.join(out_dir, "charts")
     os.makedirs(cdir, exist_ok=True)
     for f in os.listdir(cdir):   # drop charts of stocks no longer on any list
@@ -942,6 +950,156 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     if named:   # tickers added without a company name: shown here so they can be named in the theme file if wanted
         print(f"named from Yahoo ({len(named)}): " + "; ".join(f"{k} = {v}" for k, v in sorted(named.items())))
     return data
+
+
+# ---------------- daily brief (brief.json + brief.html; read by the morning Claude brief) ----------------
+BRIEF_TOP = 15                 # names per setup list
+BRIEF_MIN_USD = 5e6            # setups need at least this much traded a day (20-day average), so thin names stay out
+FX_USD = {"USD": 1, "KRW": 0.00072, "JPY": 0.0066, "TWD": 0.031, "HKD": 0.128, "CNY": 0.14, "MYR": 0.22, "SGD": 0.77,
+          "THB": 0.029, "AUD": 0.65, "EUR": 1.08, "GBP": 1.27, "GBp": 0.0127, "SEK": 0.095, "CAD": 0.73, "INR": 0.012,
+          "CHF": 1.12, "NOK": 0.092, "DKK": 0.145}   # rough, for the liquidity cut only
+TIER_UP = {("lag", "med"), ("med", "lead"), ("lag", "lead")}
+LONG_SIG = {"brku": "Breakout", "hi52": "52-week high", "x50u": "Reclaimed 50-day", "x200u": "Reclaimed 200-day", "golden": "Golden cross"}
+SHORT_SIG = {"brkd": "Breakdown", "lo52": "52-week low", "x50d": "Lost 50-day", "x200d": "Lost 200-day", "death": "Death cross"}
+
+
+def leader_health(h, window=5):
+    """Same rule as leaders.html: Lagging above Lead = Risk-off (Improving if Lead grows and Lagging shrinks over `window`
+    sessions); otherwise Healthy, or Weakening if Lead shrank and Lagging grew."""
+    n = len(h.get("d", []))
+    if n < 2:
+        return None
+    i, j = n - 1, max(0, n - 1 - window)
+    lead, lag, dl, dg = h["lead"][i], h["lag"][i], h["lead"][i] - h["lead"][j], h["lag"][i] - h["lag"][j]
+    if lag > lead:
+        st = "Improving" if dl > 0 and dg < 0 else "Risk-off"
+    else:
+        st = "Weakening" if dl < 0 and dg > 0 else "Healthy"
+    return {"status": st, "lead": lead, "med": h["med"][i], "lag": lag, "d_lead": dl, "d_med": h["med"][i] - h["med"][j],
+            "d_lag": dg, "since": h["d"][j], "asof": h["d"][i]}
+
+
+def build_brief(data, stocks):
+    """The facts for the morning brief, computed the same way every day: setups, what improved or deteriorated since the
+    previous session, breadth, themes and the leaders. Covers the theme stocks and the leaders list (not the broad screen)."""
+    pool = {}
+    for t in data["themes"]:
+        for g in t["groups"]:
+            for it in g["items"]:
+                pool.setdefault(it["k"], {"sym": it["sym"], "label": it["label"], "where": f"{t['title']} / {g['name']}"})
+    for g in data["leaders"]["groups"]:
+        for it in g["items"]:
+            pool.setdefault(it["k"], {"sym": it["sym"], "label": it["label"], "where": f"Leaders / {g['name']}"})
+    rows = []
+    for k, p in pool.items():
+        s = stocks.get(k)
+        if not s or s.get("dq"):
+            continue
+        fx = FX_USD.get(s.get("cur") or "USD")
+        liquid = fx is None or (s.get("dv20") or 0) * fx >= BRIEF_MIN_USD
+        rows.append({**p, "k": k, "s": s, "liquid": liquid})
+
+    def card(r, why):
+        s = r["s"]
+        vs21 = (s["last"] / s["ema21"] - 1) * 100 if s.get("ema21") else None
+        rnd = lambda v, d=1: None if v is None else round(v, d)   # noqa: E731
+        return {"k": r["k"], "sym": r["sym"], "name": r["label"], "where": r["where"], "why": why, "last": s.get("last"),
+                "cur": s.get("cur"), "day": rnd(s.get("pct")), "m1": rnd(s.get("m1")), "rs3": rnd(s.get("rs3")),
+                "tier": s.get("tier"), "trend": (s.get("trend") or {}).get("label"), "short": (s.get("sterm") or {}).get("dir"),
+                "vs21": rnd(vs21), "adr": rnd(s.get("adr")), "rsi": rnd(s.get("rsi"), 0)}
+
+    def sigs(s, keys):
+        return [x for x in s.get("signals", []) if x["k"] in keys]
+
+    def top(items, key, reverse=True):
+        items = [x for x in items if x is not None]
+        return sorted(items, key=lambda c: (c[key] is None, -(c[key] or 0) if reverse else (c[key] or 0)))[:BRIEF_TOP]
+
+    def vs21(s):
+        return (s["last"] / s["ema21"] - 1) * 100 if s.get("ema21") else None
+
+    def nearest(items):   # a stock with two patterns near their levels: the nearer one only
+        out, seen = [], set()
+        for c in sorted(items, key=lambda c: c["gap"]):
+            if c["k"] not in seen:
+                seen.add(c["k"])
+                out.append(c)
+        return out[:BRIEF_TOP]
+
+    long_brk, short_brk, long_pb, short_bn, long_pat, short_pat, better, worse = [], [], [], [], [], [], [], []
+    for r in rows:
+        s = r["s"]
+        t, d21 = s.get("tier"), vs21(s)
+        if not r["liquid"]:
+            continue
+        lb, sb = sigs(s, LONG_SIG), sigs(s, SHORT_SIG)
+        if lb and t != "lag":
+            long_brk.append(card(r, "; ".join(x["t"] for x in lb)))
+        if sb and t != "lead":
+            short_brk.append(card(r, "; ".join(x["t"] for x in sb)))
+        touch = [x for x in s.get("signals", []) if x["k"] in ("t9d", "t21d")]
+        if t == "lead" and d21 is not None and (-1 <= d21 <= 3 or any(x["d"] > 0 for x in touch)):
+            long_pb.append(card(r, "Lead tier, pulling back to the 9 / 21 EMA" + (f" ({'; '.join(x['t'] for x in touch)})" if touch else "")))
+        if t == "lag" and d21 is not None and (-3 <= d21 <= 1 or any(x["d"] < 0 for x in touch)):
+            short_bn.append(card(r, "Lagging tier, bouncing into the 9 / 21 EMA" + (f" ({'; '.join(x['t'] for x in touch)})" if touch else "")))
+        for p in s.get("pat", []):
+            if p["state"] != "forming" or not p.get("neck") or not s.get("last"):
+                continue
+            gap = (p["neck"] / s["last"] - 1) * 100   # + = level above the price
+            if p["d"] > 0 and 0 <= gap <= 3:
+                long_pat.append({**card(r, f"{p['name']} forming, {gap:.1f}% below its breakout level {p['neck']:.4g} (target {p['target']:.4g})"), "gap": round(gap, 1)})
+            if p["d"] < 0 and -3 <= gap <= 0:
+                short_pat.append({**card(r, f"{p['name']} forming, {-gap:.1f}% above its breakdown level {p['neck']:.4g} (target {p['target']:.4g})"), "gap": round(-gap, 1)})
+        tp, sp, sn = s.get("tier_prev"), s.get("sterm_prev"), (s.get("sterm") or {}).get("dir")
+        if tp and t and (tp, t) in TIER_UP:
+            better.append(card(r, f"Tier {tp} -> {t}"))
+        elif tp and t and (t, tp) in TIER_UP:
+            worse.append(card(r, f"Tier {tp} -> {t}"))
+        elif sp and sn and sp != sn and sn == "up":
+            better.append(card(r, f"Short-term trend {sp} -> up"))
+        elif sp and sn and sp != sn and sn == "down":
+            worse.append(card(r, f"Short-term trend {sp} -> down"))
+
+    def tiers(rs, key):
+        out = {"lead": 0, "med": 0, "lag": 0}
+        for r in rs:
+            v = r["s"].get(key)
+            if v in out:
+                out[v] += 1
+        return out
+
+    themes = []
+    for t in data["themes"]:
+        ks = {it["k"] for g in t["groups"] for it in g["items"]}
+        rs = [r for r in rows if r["k"] in ks]
+        if not rs:
+            continue
+        avg = lambda f: round(sum(r["s"][f] for r in rs if r["s"].get(f) is not None) / max(1, sum(1 for r in rs if r["s"].get(f) is not None)), 2)   # noqa: E731
+        themes.append({"theme": t["title"], "n": len(rs), "day": avg("pct"), "w1": avg("w1"), "m1": avg("m1"),
+                       "above50": sum(1 for r in rs if r["s"].get("ma50") and r["s"]["last"] > r["s"]["ma50"]),
+                       "tiers": tiers(rs, "tier"), "tiers_5d": tiers(rs, "tier_5d")})
+    lk = {it["k"] for g in data["leaders"]["groups"] for it in g["items"]}
+    leaders = {"health": leader_health(data["leaders"]["hist"]),
+               "tiers": {x: [card(r, r["where"].split(" / ")[-1]) for r in rows if r["k"] in lk and r["s"].get("tier") == x]
+                         for x in ("lead", "med", "lag")}}
+    spx_day = (stocks.get("^GSPC") or {}).get("asof")
+    theme_rows = [r for r in rows if not r["where"].startswith("Leaders")]
+    return {
+        "generated": data["generated"], "street_asof": data.get("street_asof"),
+        "us_session": (data.get("spx_asof") or spx_day or "")[:10], "intraday": bool((data.get("spx") or {}).get("intraday")),
+        "spx": data.get("spx"),
+        "breadth": {"stocks": len(theme_rows), "tiers": tiers(theme_rows, "tier"), "tiers_prev": tiers(theme_rows, "tier_prev"),
+                    "tiers_5d": tiers(theme_rows, "tier_5d"),
+                    "above50": sum(1 for r in theme_rows if r["s"].get("ma50") and r["s"]["last"] > r["s"]["ma50"]),
+                    "above200": sum(1 for r in theme_rows if r["s"].get("ma200") and r["s"]["last"] > r["s"]["ma200"])},
+        "leaders": leaders, "themes": themes,
+        "long": {"breakouts": top(long_brk, "rs3"), "pullbacks": top(long_pb, "rs3"), "near_breakout": nearest(long_pat)},
+        "short": {"breakdowns": top(short_brk, "rs3", False), "bounces": top(short_bn, "rs3", False),
+                  "near_breakdown": nearest(short_pat)},
+        "improving": top(better, "rs3"), "deteriorating": top(worse, "rs3", False),
+        "counts": {"improving": len(better), "deteriorating": len(worse)},
+        "data_flags": [{"k": k, "why": s["dq"]} for k, s in stocks.items() if s.get("dq")],
+    }
 
 
 def leader_history(rows):
