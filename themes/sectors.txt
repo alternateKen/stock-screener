@@ -100,6 +100,7 @@ WFC | Wells Fargo
 SCHW | Charles Schwab
 SPGI | S&P Global
 HOOD | Robinhood Markets
+MCO | Moody's
 
 [Industrials]
 GE | GE Aerospace

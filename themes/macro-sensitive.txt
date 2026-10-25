@@ -28,6 +28,8 @@ PHM | PulteGroup
 NVR | NVR
 TOL | Toll Brothers
 BLDR | Builders FirstSource
+VMC | Vulcan Materials
+MLM | Martin Marietta Materials
 
 [Oil & Gas]
 XLE | Energy Select Sector ETF
@@ -40,6 +42,7 @@ SLB | SLB
 PTTGC TB | PTT Global Chemical (Thailand)
 SU US | Suncor Energy
 OBE US | Obsidian Energy
+VLO | Valero Energy
 
 [Metals & Miners]
 GDX | VanEck Gold Miners ETF

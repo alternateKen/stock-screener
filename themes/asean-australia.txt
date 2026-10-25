@@ -1,0 +1,92 @@
+# ASEAN & AUSTRALIA theme: from the W1 Equity Buyside worksheet (Australia, Singapore, Malaysia, Thailand).
+# Singapore and Malaysia are written as Yahoo codes (D05.SI, 1155.KL), because Yahoo numbers them differently from
+# Bloomberg; the Bloomberg sync skips Yahoo-style codes, so these get no Street column but cost no Bloomberg allowance.
+@title ASEAN & Australia
+@description Australia's big banks, miners and retailers; Singapore's banks, REITs and industrials; Malaysia's banks, utilities, tech and data-centre build-out; Thailand's large caps.
+@order 45
+
+[Australia]
+CBA AU | Commonwealth Bank of Australia
+WES AU | Wesfarmers
+BHP AU | BHP Group
+COL AU | Coles Group
+WOW AU | Woolworths Group
+CSL AU | CSL
+
+[Singapore Banks & Telecom]
+D05.SI | DBS Group
+O39.SI | OCBC
+U11.SI | United Overseas Bank
+Z74.SI | Singtel
+
+[Singapore Industrials & Tech]
+BN4.SI | Keppel
+S63.SI | ST Engineering
+A31.SI | Addvalue Technologies
+5DD.SI | Micro-Mechanics
+
+[Singapore REITs & Trusts]
+C38U.SI | CapitaLand Integrated Commercial Trust
+9CI.SI | CapitaLand Investment
+K71U.SI | Keppel REIT
+O5RU.SI | AIMS APAC REIT
+A7RU.SI | Keppel Infrastructure Trust
+
+[Malaysia Banks]
+1155.KL | Malayan Banking (Maybank)
+1295.KL | Public Bank
+1023.KL | CIMB Group
+1066.KL | RHB Bank
+1015.KL | AMMB Holdings
+2488.KL | Alliance Bank Malaysia
+
+[Malaysia Utilities & Telecom]
+5347.KL | Tenaga Nasional
+6033.KL | Petronas Gas
+4863.KL | Telekom Malaysia
+5031.KL | TIME dotCom
+
+[Malaysia Tech & Semis]
+0097.KL | ViTrox
+0166.KL | Inari Amertron
+7160.KL | Pentamaster
+5162.KL | VSTECS
+
+[Malaysia Data Centre & Power Build-out]
+0151.KL | Kelington Group
+0225.KL | Southern Cable Group
+0245.KL | MN Holdings
+0310.KL | UUE Holdings
+0293.KL | KJTS Group
+0292.KL | Jati Tinggi Group
+0291.KL | Critical Holdings
+0296.KL | HE Group
+0395.KL | OGX Group
+
+[Malaysia Consumer & Health Care]
+5225.KL | IHH Healthcare
+5555.KL | Sunway Healthcare
+5296.KL | MR DIY Group
+5248.KL | Bermaz Auto
+0157.KL | Focus Point Holdings
+5351.KL | Empire Premium Food
+
+[Malaysia Plantations, Property & Energy]
+2089.KL | United Plantations
+5285.KL | SD Guthrie
+5323.KL | Johor Plantations Group
+8869.KL | Press Metal Aluminium
+5211.KL | Sunway
+5288.KL | Sime Darby Property
+5176.KL | Sunway REIT
+5106.KL | Axis REIT
+5227.KL | IGB REIT
+5243.KL | Velesto Energy
+5210.KL | Bumi Armada
+
+[Thailand]
+KBANK TB | Kasikornbank
+ADVANC TB | Advanced Info Service
+PTT TB | PTT
+PTTEP TB | PTT Exploration & Production
+DELTA TB | Delta Electronics (Thailand)

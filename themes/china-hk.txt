@@ -155,6 +155,7 @@ TCEHY | Tencent (US ADR)
 16 HK | Sun Hung Kai Properties
 1109 HK | China Resources Land
 941 HK | China Mobile
+6 HK | Power Assets Holdings
 
 [ETFs]
 3081 HK | Value Gold ETF
