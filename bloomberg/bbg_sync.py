@@ -4,7 +4,8 @@ Runs on the PC where you are logged in to Bloomberg. Windows Task Scheduler star
 each time it:
   1. stops at once unless today's run is due (the first slot of each weekday, 05:30-21:00 on this PC's clock),
   2. stops quietly if Bloomberg is not logged in (it never logs in for you and never sees your password),
-  3. otherwise fetches consensus for every theme stock and uploads it to GitHub in ONE commit.
+  3. otherwise fetches consensus for every theme stock and uploads it to GitHub in ONE commit,
+  4. and adds names from the worksheet exports in %USERPROFILE%\\bbg_sync\\worksheets that the site lacks to the Inbox.
 
 Only derived numbers are uploaded: upside to the consensus target, % buy ratings, consensus rating, number of analysts,
 the 4-week EPS revision, and Bloomberg's 50 / 200-day averages (used to cross-check the screener's price data).
@@ -464,6 +465,217 @@ def parse_tickers(text):
     return list(dict.fromkeys(out))
 
 
+# ---------------- worksheet exports (W <GO> -> Excel, saved in WORKSHEETS) -> new names into the Inbox ----------------
+# This login cannot read Security Worksheets through the API (no BQL), so the owner exports a worksheet to Excel into
+# WORKSHEETS whenever it changes. Every run reads the folder, and names the screener does not have yet go into
+# themes/inbox.txt, once each: a name deleted from the site later is not added again (state "ws_offered").
+WORKSHEETS = os.path.join(HOME, "worksheets")
+WS_MAX_NEW = 150          # names looked up per run at most (each new one counts once against the monthly allowance)
+# market from a worksheet's tab or file name, for exports without the "Ticker and Exchange Code" column
+WS_MARKETS = [("japan", "JP"), ("korea", "KS"), ("taiwan", "TT"), ("china", "CN"), ("hong kong", "HK"), ("australia", "AU"),
+              ("singapore", "SP"), ("malaysia", "MK"), ("thailand", "TB")]
+WS_SKIP = re.compile(r"\b(ETF|ETN|FUND|TRACKER|INDEX|CURNCY|COMDTY)\b", re.I)
+WS_YAHOO_SFX = {"SP": ".SI", "MK": ".KL"}   # Yahoo numbers these markets differently: the code comes from ID_EXCH_SYMBOL
+
+
+def xlsx_rows(path):
+    """An .xlsx file -> {sheet name: [row as a list of strings]}, standard library only."""
+    import zipfile
+    import xml.etree.ElementTree as ET
+    ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    rel = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    z = zipfile.ZipFile(path)
+    ss = []
+    if "xl/sharedStrings.xml" in z.namelist():
+        ss = ["".join(t.text or "" for t in si.iter(ns + "t")) for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall(ns + "si")]
+    rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+    out = {}
+    for sh in ET.fromstring(z.read("xl/workbook.xml")).iter(ns + "sheet"):
+        target = rels.get(sh.get(rel), "")
+        target = target.lstrip("/") if target.startswith("/") else "xl/" + target
+        rows = []
+        for row in ET.fromstring(z.read(target)).iter(ns + "row"):
+            vals = {}
+            for c in row.findall(ns + "c"):
+                col = re.match(r"[A-Z]+", c.get("r", "A")).group(0)
+                idx = 0
+                for ch in col:
+                    idx = idx * 26 + ord(ch) - 64
+                v, inl = c.find(ns + "v"), c.find(ns + "is")
+                if c.get("t") == "s" and v is not None:
+                    vals[idx - 1] = ss[int(v.text)]
+                elif c.get("t") == "inlineStr" and inl is not None:
+                    vals[idx - 1] = "".join(t.text or "" for t in inl.iter(ns + "t"))
+                elif v is not None:
+                    vals[idx - 1] = v.text
+            rows.append([(vals.get(i) or "").strip() for i in range(max(vals) + 1)] if vals else [])
+        out[sh.get("name")] = rows
+    return out
+
+
+def ws_entries(path):
+    """One exported worksheet file -> [(candidate Bloomberg codes, name from the export, where)]. Candidates are tried in
+    order; several only when the export has no exchange codes and the market leaves a choice (Korea KS / KQ, China HK / CH)."""
+    out = []
+    fname = os.path.basename(path)
+    for sheet, rows in xlsx_rows(path).items():
+        hdr = next((r for r in rows if r and r[0].lower().startswith("ticker")), None)
+        if not hdr:
+            continue
+        low = [h.lower() for h in hdr]
+        cex = next((i for i, h in enumerate(low) if "exchange" in h), None)   # "Ticker and Exchange Code": the full code
+        ctk = next((i for i, h in enumerate(low) if h.startswith("ticker") and i != cex), cex)
+        cnm = next((i for i, h in enumerate(low) if "name" in h), None)
+        market = next((m for k, m in WS_MARKETS if k in f"{sheet} {fname}".lower()), None)
+        for r in rows[rows.index(hdr) + 1:]:
+            tk = (r[cex] if cex is not None and cex < len(r) and r[cex] else r[ctk] if ctk < len(r) else "").strip()
+            nm = r[cnm] if cnm is not None and cnm < len(r) else ""
+            if not tk or "(" in tk or (cnm is not None and not nm) or WS_SKIP.search(f"{tk} {nm}"):
+                continue   # group headings ("Top Performers (10)") have no name; currencies, indices and funds are skipped
+            tk = re.sub(r"\s+EQUITY$", "", tk.upper()).strip()
+            cands = ws_candidates(tk, market, bool(nm))
+            out.append((cands, nm if cands else f"{tk} {nm}".strip(), f"{fname} / {sheet}"))
+    return out
+
+
+def ws_candidates(tk, market, named=True):
+    """'2330 TT' -> ['2330 TT']; bare '660' on a Korea tab -> ['000660 KS', '000660 KQ']; bare 'NVDA' on another tab -> ['NVDA US']
+    when the export gives a company name to confirm it with (otherwise BHP could become the BHP US ADR, not BHP AU)."""
+    if re.match(r"^\S+\s+[A-Z][A-Z0-9]$", tk):
+        return [tk]
+    if " " in tk:
+        return []   # a heading such as "My Securities"
+    if market == "KS":
+        base = tk.zfill(6) if tk.isdigit() else tk
+        return [f"{base} KS", f"{base} KQ"]
+    if market == "CN":
+        return [f"{tk} CH"] if len(tk) == 6 else [f"{tk} HK", f"{tk.zfill(6)} CH"]
+    if market:
+        return [f"{tk} {market}"]
+    return [] if tk.isdigit() or not named else [f"{tk} US"]   # mixed tab: a bare number, or no name to confirm a guess
+
+
+def name_key(name):
+    """'Samsung Electronics Co Ltd' -> ['samsung', 'electronics']: the words that identify a company."""
+    stop = {"co", "corp", "corporation", "inc", "ltd", "limited", "plc", "holdings", "holding", "group", "bhd", "berhad", "pcl",
+            "public", "company", "the", "sa", "nv", "se", "ag", "asa", "ab", "tbk", "class", "a", "b", "h", "shares", "of", "and",
+            "adr", "ads", "spon", "sponsored", "reg", "unsp"}
+    return [w for w in re.findall(r"[a-z0-9]+", (name or "").lower().split("(")[0]) if w not in stop]
+
+
+def same_company(a, b):
+    """Two names for the same company? Equal identifying words, or one is the start of the other with at least two words.
+    Exports cut names at about 29 characters ('Commonwealth Bank of Australi'), so a last word may be cut short too."""
+    ka, kb = name_key(a), name_key(b)
+    if not ka or not kb:
+        return False
+    short, long_ = sorted((ka, kb), key=len)
+    if len(short) < 2 and ka != kb:
+        return False
+    head, last = short[:-1], short[-1]
+    return long_[:len(head)] == head and long_[len(head)].startswith(last) if len(long_) > len(head) else ka == kb
+
+
+def site_index(gh):
+    """Everything on the site: theme and universe codes as Yahoo keys (Korean ones also by their 6 digits), and the names."""
+    keys, names = set(), []
+    files = [f"themes/{f['name']}" for f in gh.list_dir(SCREENER_REPO, "themes") if f["name"].endswith(".txt")] + ["universe.txt"]
+    for path in files:
+        for line in gh.read(SCREENER_REPO, path).splitlines():
+            line = line.split("#")[0].strip()
+            if not line or line.startswith(("[", "@")):
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            k = yahoo_key(parts[0]) if "." not in parts[0] else parts[0].upper()
+            keys.add(k)
+            m = re.match(r"^(\d{6})\.K[SQ]$", k)
+            if m:
+                keys.add(m.group(1))
+            if len(parts) > 1:
+                names.append(parts[1])
+    return keys, names
+
+
+def ws_known(code, name, keys, names):
+    k = yahoo_key(code)
+    return k in keys or (re.match(r"^\d{6}\.K[SQ]$", k) and k[:6] in keys) or any(same_company(name, n) for n in names)
+
+
+def worksheet_inbox(gh, bbg, st, files):
+    """Read the worksheet exports and add names the screener does not have to themes/inbox.txt (in `files`)."""
+    if not os.path.isdir(WORKSHEETS):
+        os.makedirs(WORKSHEETS, exist_ok=True)
+    paths = sorted(os.path.join(WORKSHEETS, f) for f in os.listdir(WORKSHEETS) if f.lower().endswith(".xlsx") and not f.startswith("~$"))
+    if not paths:
+        return
+    entries = []
+    for p in paths:
+        try:
+            entries += ws_entries(p)
+        except Exception as e:  # noqa: BLE001
+            say(f"  [!!]  worksheet {os.path.basename(p)}: cannot read it ({e})")
+    keys, names = site_index(gh)
+    offered = set(st.get("ws_offered", []))
+    todo, unclear, seen = [], [], set()
+    for cands, nm, where in entries:
+        if not cands:
+            unclear.append(f"{nm or '?'} ({where})")
+            continue
+        if any(ws_known(c, nm, keys, names) for c in cands) or any(c in offered for c in cands) or cands[0] in seen:
+            continue
+        seen.add(cands[0])
+        todo.append((cands, nm, where))
+    say(f"  [..]  worksheets: {len(paths)} files, {len(entries)} names, {len(todo)} not on the site yet")
+    if unclear:
+        say(f"  [..]    {len(unclear)} names without an exchange code skipped (export with the 'Ticker and Exchange Code' column): "
+            + "; ".join(unclear[:6]) + (" ..." if len(unclear) > 6 else ""))
+    if not todo:
+        return
+    if len(todo) > WS_MAX_NEW:
+        say(f"  [..]    looking up the first {WS_MAX_NEW} today; the rest follow on the next runs")
+        todo = todo[:WS_MAX_NEW]
+    secs = sorted({bbg_code(c) for cands, _, _ in todo for c in cands})
+    ok, why = affordable(st, bbg, secs, len(secs) * 2)
+    if not ok:
+        say(f"  [!!]  worksheet names not looked up, to stay inside the Bloomberg allowance: {why}")
+        return
+    d, errs = bbg.ref(secs, ["NAME", "ID_EXCH_SYMBOL"])
+    added, mismatch = [], []
+    for cands, nm, where in todo:
+        hit = next((c for c in cands if d.get(bbg_code(c)) and (not nm or same_company(nm, d[bbg_code(c)].get("NAME") or ""))), None)
+        if not hit:
+            got = [f"{c} = {d[bbg_code(c)].get('NAME')}" for c in cands if d.get(bbg_code(c))]
+            mismatch.append(f"{nm} ({where})" + (f": Bloomberg has {'; '.join(got)}" if got else ": not recognised"))
+            continue
+        bname = (d[bbg_code(hit)].get("NAME") or nm).title()
+        if any(same_company(bname, n) for n in names):   # on the site under another listing (e.g. BHP AU vs the BHP US ADR)
+            offered.add(hit)
+            continue
+        cc = hit.split()[-1]
+        code = hit
+        if cc in WS_YAHOO_SFX:   # Singapore / Malaysia: Yahoo uses the exchange's own code (DBS SP -> D05.SI)
+            sym = (d[bbg_code(hit)].get("ID_EXCH_SYMBOL") or "").strip()
+            if not sym:
+                mismatch.append(f"{nm} ({where}): no exchange symbol from Bloomberg, add it by hand")
+                continue
+            code = sym + WS_YAHOO_SFX[cc]
+            if code.upper() in keys:
+                offered.add(hit)
+                continue
+        added.append((code, nm or bname))
+        offered.add(hit)
+    if mismatch:
+        say(f"  [..]    {len(mismatch)} names not added (Bloomberg did not confirm the ticker and name): " + "; ".join(mismatch[:6])
+            + (" ..." if len(mismatch) > 6 else ""))
+    st["ws_offered"] = sorted(offered)
+    if not added:
+        return
+    text = files.get("themes/inbox.txt") or gh.read(SCREENER_REPO, "themes/inbox.txt")
+    text = text.rstrip("\n") + "\n" + "".join(f"{c} | {n}\n" for c, n in added)
+    files["themes/inbox.txt"] = text
+    say(f"  [OK]  from the worksheets, added to the Inbox theme: {', '.join(c for c, _ in added)}")
+
+
 # ---------------- main ----------------
 def daily_due(now, st):
     """The daily run: each weekday (from CONSENSUS_FROM), the first slot inside the window that has passed.
@@ -517,6 +729,8 @@ def run(mode, typed=()):
                 files.update(got)
                 if typed and gh:
                     files.update(add_to_inbox(gh, bbg, typed, before))
+            if gh:   # new names from the worksheet exports (a test run reports them without remembering them)
+                worksheet_inbox(gh, bbg, json.loads(json.dumps(st)) if mode == "test" else st, files)
         except Exception as e:  # noqa: BLE001
             say(f"  [!!]  Screener consensus failed: {e}")
             log(traceback.format_exc())

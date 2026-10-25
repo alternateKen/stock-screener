@@ -122,6 +122,16 @@ Re-running the same stocks doesn't count again against the monthly unique-securi
 
 The macro dashboard's Bloomberg files (Fed pricing, credit, economic calendar, index weights) are **no longer updated** by the sync, to save the allowance. They keep their last values.
 
+### New names from your worksheets (W <GO>)
+The API cannot read Security Worksheets on this login (no BQL), so the sync reads Excel exports instead:
+1. Double-click **`open_worksheets_folder.bat`**. It opens (and creates) `%USERPROFILE%bg_sync\worksheets`.
+2. In `W <GO>`, open a worksheet and export it to Excel into that folder. Re-export over the same file whenever the worksheet changes.
+3. The next daily run (or `run_now.bat`) adds any name the screener does not have yet to the **Inbox** theme, after Bloomberg confirms the ticker and the company name. Ask Claude to sort the Inbox into themes.
+
+- **Add the "Ticker and Exchange Code" column to each worksheet before exporting** (field `TICKER_AND_EXCH_CODE`). Without it, the export only has bare tickers such as `2330` or `660`: the sync then works out the market from the worksheet's name (Japan, Korea, Taiwan, China, Australia, Singapore, Malaysia, Thailand) and skips bare tickers it cannot place, listing them in the log.
+- Each name is added once. If you delete it from the site later, it is not added again.
+- Currencies, indices and funds / ETFs are skipped. Each new name costs one unique security this month (shown in the run's allowance line).
+
 ### Worksheet probe (optional)
 Double-click **`probe_worksheets.bat`** and press Enter. It checks whether the API can read one of your Security Worksheets (`W <GO>`) by name, which would let the daily sync add new worksheet names to the Inbox by itself. It uploads nothing; a successful answer costs about 24 securities (W45 Alpha's members, already counted this month). Send the window to Claude.
 
