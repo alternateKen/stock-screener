@@ -4,7 +4,7 @@ indicators and signals, and write docs/data.json for the pages. Standard library
 Usage: python scripts/screen.py [output folder, default docs]"""
 import json, os, re, sys, time, urllib.request, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
@@ -276,6 +276,46 @@ def chart_payload(b):
         seeds = {str(n): ema_series(c[:cut], n)[-1] for n in EMAS}
         out["e"] = {n: float(f"{v:.8g}") for n, v in seeds.items() if v is not None}
     return out
+
+
+# ---------------- corporate actions Yahoo has not adjusted for (data/adjustments.txt) ----------------
+def load_adjustments(errors, path=None):
+    """data/adjustments.txt -> {yahoo key: [(effective date, factor)]}."""
+    path = path or os.path.join(ROOT, "data", "adjustments.txt")
+    out = {}
+    if not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.split("#")[0].strip()
+            if not line:
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            try:
+                day, factor = date.fromisoformat(parts[1]), float(parts[2])
+                if not 0 < factor < 10:
+                    raise ValueError("factor out of range")
+            except (IndexError, ValueError) as e:
+                errors.append(f"adjustments.txt: cannot read '{line}' ({e})")
+                continue
+            out.setdefault(yahoo_candidates(parts[0])[0][0], []).append((day, factor))
+    return out
+
+
+def adjust_bars(b, actions):
+    """Scale prices before each action's date by its factor (volume the other way), in place, as Bloomberg adjusts history.
+    Bars are dated by the session open in UTC: 6 hours are added so Sydney's and Auckland's opens (the evening before
+    in UTC) land on their own day, while New York's (13:30 UTC) stays on its day."""
+    for day, f in actions:
+        for i, t in enumerate(b["t"]):
+            if datetime.fromtimestamp(t + 21600, timezone.utc).date() >= day:
+                break
+            for k in ("o", "h", "l", "c"):
+                if b.get(k) and b[k][i] is not None:
+                    b[k][i] *= f
+            if b.get("v") and b["v"][i]:
+                b["v"][i] /= f
+    return b
 
 
 # ---------------- Yahoo ----------------
@@ -714,6 +754,9 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
                     jobs.setdefault(k, {"cands": it["cands"], "news": False})
                     jobs[k]["news"] |= with_news
     idx_syms = {tuple(g["index"]) for g in universe["groups"] if g["index"]} | {("^GSPC",)}
+    adj = load_adjustments(errors)
+    if adj:
+        print(f"corporate-action adjustments for {len(adj)} stocks: {', '.join(sorted(adj))}")
 
     def one(k):
         """Codes that can live on two exchanges (Taiwan TWSE / TPEx, Korea KOSPI / KOSDAQ) are fetched on both and the
@@ -734,6 +777,8 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
         if best is not got[0]:   # only worth a log line when the first exchange tried was the wrong one
             other = [b["ysym"] for b in got if b is not best]
             print(f"  {k}: listed under {', '.join(b['ysym'] for b in got)}; using {best['ysym']} (skipped {', '.join(other)})")
+        if k in adj:
+            adjust_bars(best, adj[k])
         return k, best, None
 
     def one_news(k):

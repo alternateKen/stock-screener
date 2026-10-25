@@ -1,0 +1,12 @@
+# Corporate actions Yahoo has not adjusted its price history for. The screener multiplies every price BEFORE the
+# date by the factor (and divides volume by it), as Bloomberg does, so averages, EMAs, signals and charts line up.
+# One line per action:   CODE | effective date (YYYY-MM-DD) | factor | what happened
+# CODE is written as in the theme files (Bloomberg style works). Factor = adjusted / unadjusted price, so below 1
+# for spin-offs, returns of capital and rights issues. The data check against Bloomberg's 50 / 200-day averages
+# (the warning sign on the pages) shows when one is missing, or no longer needed because Yahoo has caught up.
+# The factors below make the screener's 50 / 200-day averages match Bloomberg's as of 23 Oct 2026.
+
+MOD US     | 2026-10-02 | 0.9207 | Spin-off of Platinum SpinCo
+000880 KP  | 2026-08-25 | 0.9080 | Spin-off of Hanwha Machinery & Service Holdings
+241 HK     | 2026-08-12 | 0.9375 | Return of capital CNY 0.1947 per share
+009830 KP  | 2026-06-15 | 0.9479 | Rights issue

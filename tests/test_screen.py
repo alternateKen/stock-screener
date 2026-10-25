@@ -114,6 +114,24 @@ class Signals(unittest.TestCase):
             e = x * k + e * (1 - k)
         self.assertAlmostEqual(e, r["ema200"], places=3)
 
+    def test_adjustments(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "adj.txt")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(chr(10).join(["# comment", "MOD US | 2026-10-02 | 0.92 | spin-off", "000880 KP | 2026-08-25 | 0.9 | x", "BAD | someday | 1 |"]))
+            errors = []
+            adj = screen.load_adjustments(errors, p)
+        self.assertEqual(adj["MOD"], [(screen.date(2026, 10, 2), 0.92)])
+        self.assertIn("000880.KS", adj)
+        self.assertEqual(len(errors), 1)
+        # Wed 30 Sep, Thu 1 Oct (US session opens 13:30 UTC), then the action on Fri 2 Oct
+        b = {"t": [1_790_775_000 + d * 86400 for d in range(3)], "o": [10.0] * 3, "h": [11.0] * 3, "l": [9.0] * 3,
+             "c": [10.0, 10.0, 9.2], "v": [100, 100, 100]}
+        screen.adjust_bars(b, adj["MOD"])
+        self.assertEqual([round(x, 4) for x in b["c"]], [9.2, 9.2, 9.2])
+        self.assertEqual(b["v"][:2], [100 / 0.92] * 2)
+        self.assertEqual(b["v"][2], 100)
+
     def test_short_history(self):
         r = screen.analyse(bars([10.0, 11.0, 12.0]), {"m1": 0, "m3": 0})
         self.assertIsNone(r["ma50"])
