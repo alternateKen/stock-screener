@@ -105,7 +105,7 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
 
 1. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
    - It does nothing unless **this week's run** is still due. The weekly run happens **the first time you're logged in to Bloomberg on a weekday from Monday, after 08:30** (07:00–21:00 on this PC's clock). If you're not logged in on Monday, it runs on Tuesday, and so on.
-   - **If Bloomberg is logged out**, it stops quietly and tries again 15 minutes later. It never logs in for you.
+   - **If Bloomberg is logged out**, it stops quietly and tries again on the next quarter hour (08:45, 09:00, 09:15, 09:30 ... until 21:00). It never logs in for you.
    - Weekly runs start on **Monday 26 October 2026**.
 2. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
 
