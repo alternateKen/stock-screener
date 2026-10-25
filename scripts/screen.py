@@ -190,7 +190,7 @@ def analyse(bars, spx=None, now=None):
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
         "ma100": sma_series(closes, 100)[-1], **ema,
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
-        # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (weekly) numbers;
+        # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (daily) numbers;
         # removed again in load_consensus so it never reaches data.json
         "_mah": {datetime.fromtimestamp(t, timezone.utc).date().isoformat(): (a, b) for t, a, b in zip(ts[-10:], m50[-10:], m200[-10:])},
         "atr_pct": atr / last * 100 if atr and last else None, "vol_x": vol_x,
@@ -657,7 +657,7 @@ def load_consensus(stocks, errors, path=None):
             st = stocks[k]
             st["st"] = rec
             n += 1
-            # Bloomberg's averages are from the sync day (weekly): compare with ours as of the last close before it
+            # Bloomberg's averages are from the sync day: compare with ours as of the last close before it
             then = [v for d, v in sorted(st.get("_mah", {}).items()) if d < day]
             ours_then = {"ma50": then[-1][0], "ma200": then[-1][1]} if then else {}
             # cross-check against Bloomberg's own moving averages: more than 3% apart means the price history differs

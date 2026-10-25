@@ -16,7 +16,7 @@ Three rules come with this:
 
 The script doesn't need Claude, Yahoo, Wikipedia or X. It only needs **Bloomberg** (the back door on the same PC) and **github.com** (to upload results to your website). That's why your main terminal's blocks on Yahoo, Wikipedia and X don't matter here.
 
-What it does once a week: ask Bloomberg for analyst consensus on every stock in your themes, and save it to the stock-screener repository, so you never type it in by hand. Only derived numbers, such as upside percentages, appear on the public website, never raw Bloomberg data. (The charts themselves come from free data and don't use Bloomberg.)
+What it does once a day (weekdays): ask Bloomberg for analyst consensus on every stock in your themes, and save it to the stock-screener repository, so you never type it in by hand. Only derived numbers, such as upside percentages, appear on the public website, never raw Bloomberg data. (The charts themselves come from free data and don't use Bloomberg.)
 
 ---
 
@@ -104,12 +104,12 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
 ## Step 9: Switch it on (2 minutes)
 
 1. Double-click **`install_schedule.bat`**. From now on Windows starts the sync every 15 minutes:
-   - It does nothing unless **this week's run** is still due. The weekly run happens **the first time you're logged in to Bloomberg on a weekday from Monday, after 08:30** (07:00–21:00 on this PC's clock). If you're not logged in on Monday, it runs on Tuesday, and so on.
+   - It does nothing unless **today's run** is still due. The daily run happens **the first time you're logged in to Bloomberg on a weekday after 08:30** (07:00–21:00 on this PC's clock). If you're not logged in at all that day, it skips to the next weekday. A `run_now.bat` run counts as that day's run.
    - **If Bloomberg is logged out**, it stops quietly and tries again on the next quarter hour (08:45, 09:00, 09:15, 09:30 ... until 21:00). It never logs in for you.
-   - Weekly runs start on **Monday 26 October 2026**.
+   - Daily runs start on **Monday 26 October 2026**.
 2. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
 
-## Extra runs, whenever you want (about 2–3 a week is fine)
+## Extra runs, whenever you want
 
 Double-click **`run_now.bat`**. It asks for **extra tickers**:
 - **Press Enter** to refresh every theme stock straight away.
@@ -123,7 +123,7 @@ Re-running the same stocks doesn't count again against the monthly unique-securi
 The macro dashboard's Bloomberg files (Fed pricing, credit, economic calendar, index weights) are **no longer updated** by the sync, to save the allowance. They keep their last values.
 
 ### Good to know
-- **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, stopping rather than going over. Every run prints its totals, e.g. `Bloomberg allowance used by this sync: 840 unique securities this month`. A full run is about 830 securities (your theme stocks) and roughly 10,000 hits, so weekly runs plus 2–3 extra a week fit easily. `run_test.bat` costs almost nothing (5 stocks).
+- **Data limits:** Bloomberg Anywhere's API allowance counts **unique securities per month** and **hits per day** (one security × one field = one hit). The sync keeps its own count and stays under **2,500 unique securities a month** and **300,000 hits a day**, stopping rather than going over. Every run prints its totals, e.g. `Bloomberg allowance used by this sync: 840 unique securities this month`. A full run is about 770 securities (your theme stocks and the Asian broad-screen lists) and roughly 10,000 hits. Running daily adds no securities (the same stock counts once a month) and uses about 3% of the daily hits, so daily runs plus extra runs fit easily. `run_test.bat` costs almost nothing (5 stocks).
 - **The public site** shows only derived numbers for the screener (percentages, never Bloomberg's raw target prices).
 - **Your firm's rules:** if this is a work computer, make sure running a scheduled script with Bloomberg data is allowed.
 - **If you change PC:** repeat steps 3, 4 and 6–9 on the new PC.

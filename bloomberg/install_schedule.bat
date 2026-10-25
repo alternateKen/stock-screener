@@ -1,6 +1,6 @@
 @echo off
 rem Sets up Windows Task Scheduler to run the sync every 15 minutes, on the quarter hour (08:30, 08:45, 09:00 ...), while you are logged in to Windows.
-rem The script itself decides whether the weekly run is due (from Monday, weekdays 07:00-21:00) and
+rem The script itself decides whether today's run is due (weekdays 07:00-21:00) and
 rem whether Bloomberg is logged in, so most runs finish in about a second and do nothing.
 cd /d "%~dp0"
 set "PYW="

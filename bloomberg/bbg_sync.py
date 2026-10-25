@@ -1,8 +1,8 @@
-"""Bloomberg -> GitHub weekly sync for the stock screener (analyst consensus and a moving-average data check).
+"""Bloomberg -> GitHub daily sync for the stock screener (analyst consensus and a moving-average data check).
 
 Runs on the PC where you are logged in to Bloomberg. Windows Task Scheduler starts it every 15 minutes;
 each time it:
-  1. stops at once unless the weekly run is due (the first slot from Monday, weekdays 07:00-21:00 on this PC's clock),
+  1. stops at once unless today's run is due (the first slot of each weekday, 07:00-21:00 on this PC's clock),
   2. stops quietly if Bloomberg is not logged in (it never logs in for you and never sees your password),
   3. otherwise fetches consensus for every theme stock and uploads it to GitHub in ONE commit.
 
@@ -12,7 +12,7 @@ the 4-week EPS revision, and Bloomberg's 50 / 200-day averages (used to cross-ch
 Usage
   python bbg_sync.py --test                 5 stocks only, saves a file on the Desktop, uploads NOTHING
   python bbg_sync.py --now [TICKER ...]     every theme stock now, plus any tickers given (new ones go into themes/inbox.txt)
-  python bbg_sync.py                        what Task Scheduler runs (weekly)
+  python bbg_sync.py                        what Task Scheduler runs (daily, weekdays)
 
 Needs: the blpapi package and a GitHub token in %USERPROFILE%\\bbg_sync\\token.txt (see SETUP.md). Standard library otherwise."""
 import base64, json, os, re, sys, time, traceback, urllib.request, urllib.error
@@ -22,8 +22,8 @@ from datetime import date, datetime, timedelta
 OWNER = "alternateKen"
 SCREENER_REPO = "stock-screener"
 WINDOW = ("07:00", "21:00")            # this PC's clock; weekdays only
-SLOTS = ["08:30", "16:30", "20:00"]    # the weekly run happens in the first of these you are logged in for, from Monday
-CONSENSUS_FROM = date(2026, 10, 26)    # weekly runs start on this Monday
+SLOTS = ["08:30", "16:30", "20:00"]    # the daily run happens in the first of these you are logged in for
+CONSENSUS_FROM = date(2026, 10, 26)    # daily runs start on this Monday
 # Bloomberg Anywhere API allowance (the owner's ceiling: under 3,000 unique securities a month, 400,000 hits a day).
 # The sync keeps its own count and stops rather than go past these.
 BUDGET_SECS_MONTH = 2500
@@ -465,18 +465,18 @@ def parse_tickers(text):
 
 
 # ---------------- main ----------------
-def weekly_due(now, st):
-    """The weekly run: from Monday (and from CONSENSUS_FROM), the first slot inside the window that has passed."""
+def daily_due(now, st):
+    """The daily run: each weekday (from CONSENSUS_FROM), the first slot inside the window that has passed.
+    A run_now.bat upload earlier the same day counts as that day's run."""
     if now.date() < CONSENSUS_FROM or now.weekday() >= 5 or not (WINDOW[0] <= now.strftime("%H:%M") < WINDOW[1]):
         return False
-    week = "%d-W%02d" % now.date().isocalendar()[:2]
-    return st.get("consensus_week") != week and any(s <= now.strftime("%H:%M") for s in SLOTS)
+    return st.get("consensus_day") != now.date().isoformat() and any(s <= now.strftime("%H:%M") for s in SLOTS)
 
 
 def run(mode, typed=()):
     now = datetime.now()
     st = load_state()
-    if mode == "auto" and not weekly_due(now, st):
+    if mode == "auto" and not daily_due(now, st):
         return 0
     if mode == "now" and now.date() < CONSENSUS_FROM:
         say(f"  [..]  Paused until {CONSENSUS_FROM:%d %b %Y} so no Bloomberg allowance is used before then. Nothing fetched.")
@@ -504,7 +504,7 @@ def run(mode, typed=()):
                 say("        If prices are missing on the Terminal too, the monthly API allowance may be used up until the month resets.")
             return 0
         gh = GitHub(token) if token else None
-        kind = {"test": "TEST: 5 stocks, nothing will be uploaded", "now": "run now", "auto": "weekly"}[mode]
+        kind = {"test": "TEST: 5 stocks, nothing will be uploaded", "now": "run now", "auto": "daily"}[mode]
         say(f"Bloomberg sync {now:%Y-%m-%d %H:%M} ({kind})" + (f", extra tickers: {', '.join(typed)}" if typed else ""))
         files = {}
         try:
@@ -535,7 +535,7 @@ def run(mode, typed=()):
         elif files:
             changed = gh.commit(SCREENER_REPO, files, f"Bloomberg sync {now:%Y-%m-%d %H:%M} ({kind})")
             say(f"  [OK]  {SCREENER_REPO}: {'uploaded ' + str(len(files)) + ' files' if changed else 'no changes'}")
-            st["consensus_week"] = "%d-W%02d" % now.date().isocalendar()[:2]
+            st["consensus_day"] = now.date().isoformat()
         save_state(st)
         log("\n".join(REPORT))
         return 0
