@@ -25,7 +25,7 @@ function buildRows(){
     if(!by[it.k])by[it.k]={...s,...it,unis:[u.name],sector:it.sector&&it.sector!==u.name?it.sector:''};
     else{by[it.k].unis.push(u.name);if(!by[it.k].sector&&it.sector&&it.sector!==u.name)by[it.k].sector=it.sector}
   }));
-  ALL=Object.values(by).map(r=>({...r,sector:r.sector||r.unis[0],nsig:(r.signals||[]).length}));
+  ALL=Object.values(by).map(r=>({...r,sector:r.sector||r.unis[0],nsig:core(r).length}));
 }
 function filtered(){
   const q=F.q.trim().toLowerCase();

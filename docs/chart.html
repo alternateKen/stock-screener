@@ -29,13 +29,17 @@
 const K=new URLSearchParams(location.search).get('k')||'';
 header('Chart','<a href="javascript:history.length>1?history.back():location.href=\'index.html\'">&larr; Back</a> &nbsp;·&nbsp; <a href="index.html">All themes</a> &nbsp;·&nbsp; ');
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const COL={ema10:'#14b8a6',ema21:'#a855f7',ma50:'#2f7fe0',ma100:'#9aa3ad',ma200:'#e08a1e',macd:'#2f7fe0',sig:'#e08a1e'};
-const MAS=[['ema10','EMA 10'],['ema21','EMA 21'],['ma50','MA 50'],['ma100','MA 100'],['ma200','MA 200']];
+const COL={ema9:'#14b8a6',ema21:'#a855f7',ema50:'#2f7fe0',ema100:'#9aa3ad',ema200:'#e08a1e',ma50:'#1e40af',ma200:'#b45309',macd:'#2f7fe0',sig:'#e08a1e'};
+const MAS=[['ema9','EMA 9'],['ema21','EMA 21'],['ema50','EMA 50'],['ema100','EMA 100'],['ema200','EMA 200'],['ma50','MA 50'],['ma200','MA 200']];
+const MA_OFF=new Set(['ema100','ma50','ma200']);   // switched off until ticked
 let C=null,R=null,charts=[],range='1y';
 
 // ---- indicators: the same formulas as scripts/screen.py (so the chart agrees with the tables) ----
 function smaS(x,n){const o=Array(x.length).fill(null);let s=0;for(let i=0;i<x.length;i++){s+=x[i];if(i>=n)s-=x[i-n];if(i>=n-1)o[i]=s/n}return o}
-function emaS(x,n){const o=Array(x.length).fill(null);if(x.length<n)return o;const k=2/(n+1);let e=0;for(let i=0;i<n;i++)e+=x[i];e/=n;o[n-1]=e;for(let i=n;i<x.length;i++){e=x[i]*k+e*(1-k);o[i]=e}return o}
+// seed = the EMA on the day before the first candle (chart files carry it, from five years of closes), so the chart continues it
+function emaS(x,n,seed){const o=Array(x.length).fill(null),k=2/(n+1);let e,i0;if(seed!=null){e=seed;i0=0}else{if(x.length<n)return o;e=0;for(let i=0;i<n;i++)e+=x[i];e/=n;o[n-1]=e;i0=n}
+  for(let i=i0;i<x.length;i++){e=x[i]*k+e*(1-k);o[i]=e}return o}
+const emaC=(c,n)=>emaS(c,n,(C.e||{})[n]);
 function rsiS(c){const o=Array(c.length).fill(null);if(c.length<15)return o;let ag=0,al=0;
   for(let i=1;i<=14;i++){const d=c[i]-c[i-1];ag+=Math.max(d,0);al+=Math.max(-d,0)}ag/=14;al/=14;o[14]=al===0?100:100-100/(1+ag/al);
   for(let i=15;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*13+Math.max(d,0))/14;al=(al*13+Math.max(-d,0))/14;o[i]=al===0?100:100-100/(1+ag/al)}return o}
@@ -54,14 +58,14 @@ function opts(h,logo=false){
 function draw(){
   charts.forEach(c=>c.remove());charts=[];
   const up=css('--up'),dn=css('--dn'),c=C.c;
-  const ma={ema10:emaS(c,10),ema21:emaS(c,21),ma50:smaS(c,50),ma100:smaS(c,100),ma200:smaS(c,200)},rsi=rsiS(c),m=macdS(c);
+  const ma={...Object.fromEntries(EMAS.map(n=>['ema'+n,emaC(c,n)])),ma50:smaS(c,50),ma200:smaS(c,200)},rsi=rsiS(c),m=macdS(c);
   // price pane: candles, moving averages, volume underneath
   const pc=LightweightCharts.createChart(document.getElementById('main-pane'),opts(420,true));
   const cs=pc.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn});
   cs.setData(C.t.map((t,i)=>({time:t,open:C.o[i],high:C.h[i],low:C.l[i],close:c[i]})));
   const lines={};
   for(const [k] of MAS){if(!document.getElementById('cb-'+k).checked)continue;
-    lines[k]=pc.addLineSeries({color:COL[k],lineWidth:k.startsWith('ema')||k==='ma100'?1:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
+    lines[k]=pc.addLineSeries({color:COL[k],lineWidth:k==='ema9'||k==='ema21'||k==='ema100'?1:2,lineStyle:k.startsWith('ma')?2:0,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false});
     lines[k].setData(series(ma[k]))}
   const vs=pc.addHistogramSeries({priceScaleId:'vol',priceFormat:{type:'volume'},lastValueVisible:false,priceLineVisible:false});
   pc.priceScale('vol').applyOptions({scaleMargins:{top:0.82,bottom:0}});
@@ -135,7 +139,7 @@ function statsHTML(){
     ${box('Last · day',`${f(r.last)} <span class="${cls(r.pct)}" style="font-size:13px">${pc(r.pct,2)}</span>`)}
     ${box('1M · 3M · YTD',`<span class="${cls(r.m1)}">${pc(r.m1)}</span> · <span class="${cls(r.m3)}">${pc(r.m3)}</span> · <span class="${cls(r.ytd)}">${pc(r.ytd)}</span>`)}
     ${box('vs S&amp;P 1M · 3M',`<span class="${cls(r.rs1)}">${pts(r.rs1)}</span> · <span class="${cls(r.rs3)}">${pts(r.rs3)}</span>`)}
-    ${box('Trend vs 50d · 200d',maPill(r)||'–')}
+    ${box('Price vs EMA · daily / weekly',maPills(r))}
     ${box('RSI 14',r.rsi==null?'–':r.rsi.toFixed(0),rsiCls(r.rsi))}
     ${box('MACD vs signal',r.macd==null||r.macd_sig==null?'–':(r.macd>r.macd_sig?'Above':'Below'),r.macd>r.macd_sig?'up':'dn')}
     ${box('52-week range',rp==null?'–':`${(rp*100).toFixed(0)}% <span class="mu" style="font-size:12px">(${pc(r.off_hi)} from high)</span>`)}
@@ -150,17 +154,17 @@ function statsHTML(){
   </div>${(r.signals||[]).length?`<div style="margin-top:10px">${sigChips(r)}</div>`:''}`;
 }
 function briefText(){
-  const r=R,c=C.c,ma={e10:emaS(c,10),e21:emaS(c,21),b:smaS(c,50),h:smaS(c,100),d:smaS(c,200)},rsi=rsiS(c),m=macdS(c),n=c.length,L=[];
+  const r=R,c=C.c,ma=EMAS.map(p=>emaC(c,p)),rsi=rsiS(c),m=macdS(c),n=c.length,L=[];
   L.push(`Act as a technical analyst. Using ONLY the data below for ${r.label} (${r.sym}) (do not invent numbers or news), give me a chart read:`);
-  L.push('1. Trend on four horizons (very short: EMA 10 / EMA 21, medium: 50d, intermediate: 100d, long: 200d) and where price sits against each average; is the swing structure (higher highs / higher lows) intact?');
+  L.push('1. Trend on each horizon from the daily EMAs (very short: 9 / 21, medium: 50, intermediate: 100, long: 200) and the weekly EMAs (9 / 21 / 50 / 100 / 200 weeks): where price sits against each, and whether each EMA is rising or falling; is the swing structure (higher highs / higher lows) intact?');
   L.push('2. Momentum: RSI 14 level and any divergence with price over the last 2-3 months; MACD position, recent crosses and histogram direction.');
   L.push('3. Key levels: recent swing highs/lows, the 52-week high/low, and moving averages acting as support or resistance.');
   L.push('4. Volume: is it confirming the latest move?');
   L.push('5. Check the support / resistance levels and any chart pattern listed in the summary against the 60-session data: are they valid, and what would confirm or negate the pattern?');
   L.push('6. A bull case and a bear case with the price levels that would confirm or invalidate each, and what to check on Bloomberg. Be concise, short bullets.');
-  L.push('',freshness(),'Summary: '+lineFor(r),'','Last 60 sessions (date, open, high, low, close, volume, EMA10, EMA21, MA50, MA100, MA200, RSI14, MACD, signal):');
+  L.push('',freshness(),'Summary: '+lineFor(r),'','Last 60 sessions (date, open, high, low, close, volume, EMA9, EMA21, EMA50, EMA100, EMA200, RSI14, MACD, signal):');
   const g=v=>v==null?'':(+v.toPrecision(5));
-  for(let i=Math.max(0,n-60);i<n;i++)L.push([new Date(C.t[i]*1000).toISOString().slice(0,10),C.o[i],C.h[i],C.l[i],c[i],C.v[i],g(ma.e10[i]),g(ma.e21[i]),g(ma.b[i]),g(ma.h[i]),g(ma.d[i]),rsi[i]==null?'':rsi[i].toFixed(1),g(m.line[i]),g(m.sig[i])].join(', '));
+  for(let i=Math.max(0,n-60);i<n;i++)L.push([new Date(C.t[i]*1000).toISOString().slice(0,10),C.o[i],C.h[i],C.l[i],c[i],C.v[i],...ma.map(s=>g(s[i])),rsi[i]==null?'':rsi[i].toFixed(1),g(m.line[i]),g(m.sig[i])].join(', '));
   const w=[];for(let i=n-1;i>=Math.max(0,n-260);i-=5)w.unshift(`${new Date(C.t[i]*1000).toISOString().slice(0,10)} ${c[i]}`);
   L.push('','Weekly closes for the past year: '+w.join('; '));
   return L.join('\n');
@@ -185,12 +189,12 @@ load(()=>{
   document.getElementById('main').innerHTML=`<section id="summary"><h2>Technical summary${R.cur?' · prices in '+esc(R.cur):''}</h2>${statsHTML()}</section>
    <section id="chart"><h2>Daily chart</h2>
     <div class="toolbar">${['3m','6m','1y','2y'].map(r=>`<span class="fchip" data-range="${r}">${r.toUpperCase()}</span>`).join('')}
-      <span class="key" style="margin-left:8px;font-size:12px"><label style="margin-right:8px"><input type="checkbox" id="cb-lv" checked> Levels &amp; patterns</label>${MAS.map(([k,l])=>`<label style="margin-right:8px"><input type="checkbox" id="cb-${k}" ${k==='ma100'?'':'checked'}> <i style="background:${COL[k]}"></i>${l}</label>`).join('')}</span>
+      <span class="key" style="margin-left:8px;font-size:12px"><label style="margin-right:8px"><input type="checkbox" id="cb-lv" checked> Levels &amp; patterns</label>${MAS.map(([k,l])=>`<label style="margin-right:8px"><input type="checkbox" id="cb-${k}" ${MA_OFF.has(k)?'':'checked'}> <i style="background:${COL[k]}"></i>${l}</label>`).join('')}</span>
       <a class="more" style="margin-left:auto" href="${tvUrl}" target="_blank" rel="noopener">Open in TradingView &rarr;</a></div>
     <div class="pane" id="main-pane"><div class="legend" id="lg-main"></div></div>
     <div class="panetitle">RSI 14 · overbought 70 / oversold 30</div><div class="pane" id="rsi-pane"><div class="legend" id="lg-rsi"></div></div>
     <div class="panetitle">MACD 12, 26, 9</div><div class="pane" id="macd-pane"><div class="legend" id="lg-macd"></div></div>
-    <div class="note">Drag to scroll, scroll or pinch to zoom; the three panels move together. Moving averages: EMA 10 and 21 (short term), MA 50, 100 and 200. Arrows mark golden and death crosses (50-day through 200-day). Dashed green / red lines are support (S) and resistance (R) levels with the number of times price turned there; solid lines join a chart pattern's peaks and troughs, the dotted line is its neckline, and "target" is the pattern's measured move. Indicators use the same formulas as the screener tables. Charts by <a class="more" href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</div></section>
+    <div class="note">Drag to scroll, scroll or pinch to zoom; the three panels move together. Moving averages: EMA 9, 21, 50, 100 and 200 (EMA 100 starts switched off), plus the simple MA 50 and MA 200 (dashed, off until ticked). Arrows mark golden and death crosses (simple 50-day through 200-day). Dashed green / red lines are support (S) and resistance (R) levels with the number of times price turned there; solid lines join a chart pattern's peaks and troughs, the dotted line is its neckline, and "target" is the pattern's measured move. Indicators use the same formulas as the screener tables. Charts by <a class="more" href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</div></section>
    <section id="tradingview"><h2>TradingView live chart</h2><div id="tvwrap"><button class="copy" id="tvbtn">Load the TradingView chart</button>
     <div class="note">Live, fully interactive, with TradingView's own indicators and drawing tools. Some Asian exchanges are not shown in TradingView's free embedded chart: use "Open in TradingView" above instead.</div></div><div id="tvbox"></div></section>
    ${copyBlock('claude-brief','Chart read with Claude')}`;

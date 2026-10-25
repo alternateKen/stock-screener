@@ -16,7 +16,13 @@ const SIGNALS={hi52:['52w high',1],lo52:['52w low',-1],x200u:['Above 200d',1],x2
   golden:['Golden cross',1],death:['Death cross',-1],macdu:['MACD up',1],macdd:['MACD down',-1],rsi70:['RSI ≥ 70',-1],rsi30:['RSI ≤ 30',1],vol:['Volume surge',0],
   brku:['Breakout',1],brkd:['Breakdown',-1],dbot:['Double bottom',1],ihs:['Inverse H&S',1],cup:['Cup & handle',1],rbot:['Rounding bottom',1],
   tria:['Ascending triangle',1],wedf:['Falling wedge',1],flagu:['Bull flag / pennant',1],tris:['Symmetrical triangle',0],
-  dtop:['Double top',-1],hs:['Head & shoulders',-1],trid:['Descending triangle',-1],wedr:['Rising wedge',-1],flagd:['Bear flag / pennant',-1]};
+  dtop:['Double top',-1],hs:['Head & shoulders',-1],trid:['Descending triangle',-1],wedr:['Rising wedge',-1],flagd:['Bear flag / pennant',-1],
+  ...Object.fromEntries([9,21,50,100,200].flatMap(n=>[[`t${n}d`,[`At ${n}d EMA`,0]],[`t${n}w`,[`At ${n}w EMA`,0]]]))};
+// EMA periods (daily and weekly) and their direction: eslope = {d9: 1 rising / -1 falling, ..., w200: ...}
+const EMAS=[9,21,50,100,200];
+// EMA touches are information, not trade signals: left out of the bullish / bearish counts and rankings
+const isTouch=s=>/^t\d+[dw]$/.test(s.k),core=r=>(r.signals||[]).filter(s=>!isTouch(s));
+const slopeWord=(r,k)=>{const s=(r.eslope||{})[k];return s>0?'rising':s<0?'falling':'n/a'};
 const TREND_ORDER={up:1,side:0,down:-1};
 // trend from price structure (higher highs / lows), the 50/200-day averages and ADX (scripts/patterns.py)
 function trendCell(r){
@@ -69,10 +75,13 @@ const chartUrl=k=>'chart.html?k='+encodeURIComponent(k);
 const dqMark=r=>r.dq?` <span class="warn" title="${esc(r.dq)}. Signals for this stock may be wrong.">⚠</span>`:'';
 const chartLink=(r,txt)=>`<a class="stk" href="${chartUrl(r.k)}" onclick="event.stopPropagation()" title="Open chart">${txt}</a>${dqMark(r)}`;
 function rsiGauge(v){return `<span class="rsi"><b style="left:${Math.max(0,Math.min(100,v))}%"></b></span>`}
-function maPill(r){
-  const p=(v,l)=>v==null?'':`<span class="pill ${r.last>v?'up':'dn'}">${r.last>v?'▲':'▼'} ${l}</span>`;
-  return p(r.ema10,'10e')+p(r.ema21,'21e')+p(r.ma50,'50')+p(r.ma100,'100')+p(r.ma200,'200');
+// price above (▲) or below (▼) each EMA; hover for the EMA's value and whether it is rising or falling
+function maPill(r,wk=false){
+  const p=n=>{const v=r[(wk?'wema':'ema')+n];if(v==null)return '';const s=(r.eslope||{})[(wk?'w':'d')+n];
+    return `<span class="pill ${r.last>v?'up':'dn'}" title="${n}-${wk?'week':'day'} EMA ${fmt(v,2)}, ${s>0?'rising':s<0?'falling':'direction n/a'}">${r.last>v?'▲':'▼'} ${n}${wk?'w':''}${s>0?'↗':s<0?'↘':''}</span>`};
+  return EMAS.map(p).join('');
 }
+const maPills=r=>`<div style="margin-bottom:3px">${maPill(r)}</div><div>${maPill(r,true)}</div>`;
 // breadth and averages over a list of stock rows (each a data.json stock merged with its list item)
 function stats(rows){
   rows=rows.filter(r=>!r.missing);
@@ -81,14 +90,14 @@ function stats(rows){
     day:avg(rows.map(r=>r.pct)),w1:avg(rows.map(r=>r.w1)),m1:avg(rows.map(r=>r.m1)),m3:avg(rows.map(r=>r.m3)),ytd:avg(rows.map(r=>r.ytd)),
     rs1:avg(rows.map(r=>r.rs1)),rs3:avg(rows.map(r=>r.rs3)),rsi:avg(rows.map(r=>r.rsi)),score:avg(rows.map(r=>r.score)),
     a50:above('ma50'),n50:n('ma50'),a200:above('ma200'),n200:n('ma200'),
-    bull:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d>0).length,0),bear:rows.reduce((p,r)=>p+(r.signals||[]).filter(s=>s.d<0).length,0),
+    bull:rows.reduce((p,r)=>p+core(r).filter(s=>s.d>0).length,0),bear:rows.reduce((p,r)=>p+core(r).filter(s=>s.d<0).length,0),
     tup:rows.filter(r=>r.trend&&r.trend.dir==='up').length,tdn:rows.filter(r=>r.trend&&r.trend.dir==='down').length,nt:rows.filter(r=>r.trend).length};
 }
 function rowsOf(items,extra={}){return items.map(it=>{const s=D.stocks[it.k];return s?{...s,...it,...extra}:{...it,...extra,missing:true}})}
 function lineFor(r){
   if(r.missing)return `${r.sym} (${r.label}): no data`;
   const rp=rangePos(r);
-  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | vs EMA10/EMA21/MA50/MA100/MA200: ${[r.ema10,r.ema21,r.ma50,r.ma100,r.ma200].map(v=>v==null?'n/a':(r.last>v?'above':'below')).join('/')} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}${r.dq?' | DATA WARNING (treat as unreliable): '+r.dq:''}`;
+  return `${r.sym} (${r.label}): ${f2(r.last)} | day ${f2(r.pct)}% | 1W ${f2(r.w1)}% | 1M ${f2(r.m1)}% | 3M ${f2(r.m3)}% | YTD ${f2(r.ytd)}% | vs S&P 1M ${f2(r.rs1,1)} pts, 3M ${f2(r.rs3,1)} pts | 52w range pos ${rp==null?'n/a':(rp*100).toFixed(0)+'%'} (${f2(r.off_hi,1)}% from high) | vs daily EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['ema'+n]==null?'n/a':(r.last>r['ema'+n]?'above':'below')+' ('+slopeWord(r,'d'+n)+')').join(', ')} | vs weekly EMA ${EMAS.join('/')}: ${EMAS.map(n=>r['wema'+n]==null?'n/a':(r.last>r['wema'+n]?'above':'below')+' ('+slopeWord(r,'w'+n)+')').join(', ')} | vs MA50/MA200: ${[r.ma50,r.ma200].map(v=>v==null?'n/a':(r.last>v?'above':'below')).join('/')} | RSI14 ${f2(r.rsi,0)} | MACD ${r.macd==null||r.macd_sig==null?'n/a':(r.macd>r.macd_sig?'above':'below')+' signal'} | ATR ${f2(r.atr_pct,1)}% | vol ${f2(r.vol_x,1)}x | trend score ${r.score==null?'n/a':r.score+'/6'} | TREND ${r.trend?r.trend.label+' ('+r.trend.why+(r.trend.adx!=null?', ADX '+r.trend.adx:'')+')':'n/a'} | SUPPORT ${r.sr&&r.sr.sup.length?r.sr.sup.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'n/a'} | RESISTANCE ${r.sr&&r.sr.res.length?r.sr.res.map(x=>f2(x.p)+' ('+x.n+' touches)').join(', '):'none (at highs)'}${(r.pat||[]).length?' | PATTERNS: '+patText(r):''} | TradingView rating ${r.tv_label?r.tv_label+' ('+f2(r.tvr)+')':'n/a'}${r.tv_industry?' | industry '+r.tv_industry:''}${r.st?` | Bloomberg consensus: target upside ${f2(r.st.up,1)}%, ${r.st.buy==null?'n/a':r.st.buy+'%'} Buy of ${r.st.n||'?'} analysts, rating ${f2(r.st.rt,1)}/5, NTM EPS estimate 4-week change ${f2(r.st.rev4w,1)}%`:''}${(r.signals||[]).length?' | SIGNALS: '+r.signals.map(s=>s.t).join('; '):''}${r.dq?' | DATA WARNING (treat as unreliable): '+r.dq:''}`;
 }
 function header(title,back){
   document.body.insertAdjacentHTML('afterbegin',`<header><h1>${esc(title)}</h1>

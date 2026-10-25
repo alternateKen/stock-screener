@@ -15,6 +15,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       "Accept": "text/csv,application/json,text/html;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"}
 WORKERS = 8
+EMAS = (9, 21, 50, 100, 200)   # exponential averages, on daily and on weekly closes
+EMA_SLOPE = 5                  # an EMA is rising (falling) if it is above (below) its value this many bars ago
+KEEP = 504                     # two years of sessions for everything except the EMAs, which use the full five years
 
 
 def get(url, tries=2, timeout=12):
@@ -52,6 +55,33 @@ def ema_series(xs, n):
         e = xs[i] * k + e * (1 - k)
         out[i] = e
     return out
+
+
+def weekly(ts, closes, highs, lows):
+    """Daily bars -> weekly closes, highs and lows (Monday to Friday; the current week so far counts as a week).
+    Bars are dated by the session open in UTC, so 12 hours are added first: Sydney's Monday opens on Sunday in UTC."""
+    wc, wh, wl, cur = [], [], [], None
+    for t, c, h, l in zip(ts, closes, highs, lows):
+        wk = datetime.fromtimestamp(t + 43200, timezone.utc).isocalendar()[:2]
+        if wk != cur:
+            cur = wk
+            wc.append(c), wh.append(h), wl.append(l)
+        else:
+            wc[-1], wh[-1], wl[-1] = c, max(wh[-1], h), min(wl[-1], l)
+    return wc, wh, wl
+
+
+def ema_touches(series, hi, lo, unit):
+    """Signals for each EMA inside the latest bar's range (low <= EMA <= high), with whether that EMA is rising or falling.
+    series = {period: EMA list}; unit = "day" or "week"."""
+    for n in EMAS:
+        s = series[n]
+        v, then = s[-1], (s[-1 - EMA_SLOPE] if len(s) > EMA_SLOPE else None)
+        if v is None or then is None:
+            continue
+        up = v > then
+        if lo <= v <= hi:
+            yield f"t{n}{unit[0]}", 1 if up else -1, f"Touching {n}-{unit} EMA, {'rising' if up else 'falling'}"
 
 
 def rsi14(closes):
@@ -121,9 +151,21 @@ def sma_series(xs, n):
 def analyse(bars, spx=None, now=None):
     """bars = {"t": [unix], "c": [close], "h": [high], "l": [low], "v": [volume], "last": live price, "time": unix,
     "intraday": bool} -> dict of indicators and signals for one stock."""
-    ts, closes, highs, lows, vols = bars["t"], list(bars["c"]), bars["h"], bars["l"], bars["v"]
+    ts, closes, highs, lows, vols = bars["t"], list(bars["c"]), list(bars["h"]), list(bars["l"]), bars["v"]
     if bars.get("last") is not None and closes:
         closes[-1] = bars["last"]
+        highs[-1], lows[-1] = max(highs[-1], closes[-1]), min(lows[-1], closes[-1])
+    # EMAs on the full history (daily and weekly), then everything else on the last two years
+    de = {n: ema_series(closes, n) for n in EMAS}
+    wc, wh, wl = weekly(ts, closes, highs, lows)
+    we = {n: ema_series(wc, n) for n in EMAS}
+    ema = {f"ema{n}": de[n][-1] for n in EMAS}
+    ema.update({f"wema{n}": we[n][-1] for n in EMAS})
+    slope = lambda s: None if s[-1] is None or len(s) <= EMA_SLOPE or s[-1 - EMA_SLOPE] is None else (1 if s[-1] > s[-1 - EMA_SLOPE] else -1)   # noqa: E731
+    ema["eslope"] = {**{f"d{n}": slope(de[n]) for n in EMAS}, **{f"w{n}": slope(we[n]) for n in EMAS}}
+    touches = list(ema_touches(de, highs[-1], lows[-1], "day")) + (list(ema_touches(we, wh[-1], wl[-1], "week")) if wc else [])
+    if len(closes) > KEEP:
+        ts, closes, highs, lows, vols = ts[-KEEP:], closes[-KEEP:], highs[-KEEP:], lows[-KEEP:], vols[-KEEP:]
     last = closes[-1]
     prev = closes[-2] if len(closes) >= 2 else None
 
@@ -146,7 +188,7 @@ def analyse(bars, spx=None, now=None):
         "last": last, "prev": prev, "pct": pct(last, prev), "w1": pct(last, ago(5)), "m1": pct(last, ago(21)),
         "m3": pct(last, ago(63)), "ytd": pct(last, ytd_base),
         "hi52": max(yr), "lo52": min(yr), "ma20": m20[-1], "ma50": m50[-1], "ma200": m200[-1],
-        "ma100": sma_series(closes, 100)[-1], "ema10": ema_series(closes, 10)[-1], "ema21": ema_series(closes, 21)[-1],
+        "ma100": sma_series(closes, 100)[-1], **ema,
         "rsi": rsi14(closes), "macd": ml[-1], "macd_sig": ms[-1],
         # the last two weeks of 50 / 200-day averages by date, for the check against Bloomberg's (weekly) numbers;
         # removed again in load_consensus so it never reaches data.json
@@ -206,6 +248,8 @@ def analyse(bars, spx=None, now=None):
             add(k, d, t)
     except Exception as e:  # noqa: BLE001   price structure is extra information: never lose the stock over it
         r["struct_err"] = str(e)
+    for k, d, t in touches:   # last, so the chips shown first stay the crosses, patterns and breakouts
+        add(k, d, t)
     r["signals"] = sig
     return r
 
@@ -217,15 +261,21 @@ def chart_file(k):
 
 def chart_payload(b):
     """Two years of daily candles, compact: day start (unix seconds), open, high, low, close, volume.
-    The last close is the live price, as everywhere else on the site."""
+    The last close is the live price, as everywhere else on the site. "e" carries each EMA's value on the day before
+    the first candle, so the chart continues the five-year EMAs instead of restarting them (and agrees with the tables)."""
     sig = lambda x: float(f"{x:.6g}")   # noqa: E731   6 significant digits is plenty for a chart
     c = list(b["c"])
     o, h, l = list(b.get("o") or c), list(b["h"]), list(b["l"])
     if b.get("last") is not None and c:
         c[-1] = b["last"]
         h[-1], l[-1] = max(h[-1], c[-1]), min(l[-1], c[-1])
-    return {"t": [t - t % 86400 for t in b["t"]], "o": [sig(x) for x in o], "h": [sig(x) for x in h],
-            "l": [sig(x) for x in l], "c": [sig(x) for x in c], "v": [int(x or 0) for x in b["v"]]}
+    cut = max(0, len(c) - KEEP)
+    out = {"t": [t - t % 86400 for t in b["t"][cut:]], "o": [sig(x) for x in o[cut:]], "h": [sig(x) for x in h[cut:]],
+           "l": [sig(x) for x in l[cut:]], "c": [sig(x) for x in c[cut:]], "v": [int(x or 0) for x in b["v"][cut:]]}
+    if cut:
+        seeds = {str(n): ema_series(c[:cut], n)[-1] for n in EMAS}
+        out["e"] = {n: float(f"{v:.8g}") for n, v in seeds.items() if v is not None}
+    return out
 
 
 # ---------------- Yahoo ----------------
@@ -234,7 +284,7 @@ def yahoo_bars(symbol):
     raw, err = None, None
     for host in ("query1", "query2"):
         try:
-            raw = get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range=2y&interval=1d&includePrePost=false", tries=2)
+            raw = get(f"https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range=5y&interval=1d&includePrePost=false", tries=2)
             break
         except Exception as e:  # noqa: BLE001
             err = e

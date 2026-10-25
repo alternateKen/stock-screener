@@ -33,7 +33,8 @@ def main(codes):
                   f"zero-volume days in last 250: {zero_v}")
             r = screen.analyse(b)
             f = lambda x: "n/a" if x is None else f"{x:,.2f}"   # noqa: E731
-            print(f"     last {f(r['last'])} | EMA10 {f(r['ema10'])} EMA21 {f(r['ema21'])} | MA50 {f(r['ma50'])} MA100 {f(r['ma100'])} "
+            print(f"     last {f(r['last'])} | EMA9 {f(r['ema9'])} EMA21 {f(r['ema21'])} EMA50 {f(r['ema50'])} EMA100 {f(r['ema100'])} EMA200 {f(r['ema200'])} | weekly EMA9 {f(r['wema9'])} EMA21 {f(r['wema21'])} EMA50 {f(r['wema50'])} "
+                  f"EMA100 {f(r['wema100'])} EMA200 {f(r['wema200'])} | MA50 {f(r['ma50'])} MA100 {f(r['ma100'])} "
                   f"MA200 {f(r['ma200'])} | RSI14 {f(r['rsi'])}")
             print(f"     trend {(r.get('trend') or {}).get('label')} | signals: {[s['t'] for s in r['signals']] or 'none'}")
 

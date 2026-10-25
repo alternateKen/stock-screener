@@ -68,9 +68,51 @@ class Signals(unittest.TestCase):
             c.append(c[-1] * (1 + random.gauss(0.001, 0.02)))
         r = screen.analyse(bars(c), {"m1": 1, "m3": 2})
         self.assertTrue(0 <= r["score"] <= 6)
-        for k in ("pct", "w1", "m1", "m3", "ytd", "rsi", "macd", "atr_pct", "vol_x", "rs1", "rs3", "ema10", "ema21", "ma100"):
+        for k in ("pct", "w1", "m1", "m3", "ytd", "rsi", "macd", "atr_pct", "vol_x", "rs1", "rs3", "ema9", "ema21", "ema50", "ema100", "ema200",
+                  "wema9", "wema21", "ma100"):
             self.assertIsNotNone(r[k], k)
             self.assertFalse(math.isnan(r[k]), k)
+
+    def test_weekly_bars(self):
+        # Monday 2 Jan 2023 00:00 UTC, five sessions then the next Monday
+        mon = 1_672_617_600
+        ts = [mon + d * 86400 for d in range(5)] + [mon + 7 * 86400]
+        c, h, l = [1.0, 2, 3, 4, 5, 6], [1.5, 2.5, 9, 4.5, 5.5, 6.5], [0.5, 1.5, 2.5, 0.1, 4.5, 5.5]
+        self.assertEqual(screen.weekly(ts, c, h, l), ([5, 6], [9, 6.5], [0.1, 5.5]))
+        # a Sydney Monday opens at 23:00 UTC on Sunday: it still belongs to Monday's week
+        self.assertEqual(len(screen.weekly([mon - 3600, mon + 86400], [1, 2], [1, 2], [1, 2])[0]), 1)
+
+    def test_ema_touch_rising_and_falling(self):
+        up = [100.0 + i * 0.5 for i in range(1300)]   # five years of a steady climb: every EMA rising
+        r = screen.analyse(bars(up), None)
+        e21 = r["ema21"]
+        b = bars(up[:-1] + [e21 * 1.005])   # the last day dips onto the 21-day EMA (its range 0.99-1.01x of the close)
+        sig = {s["k"]: s for s in screen.analyse(b, None)["signals"]}
+        self.assertIn("t21d", sig)
+        self.assertEqual(sig["t21d"]["d"], 1)
+        self.assertIn("rising", sig["t21d"]["t"])
+        self.assertNotIn("t200d", sig)   # far below the price
+        down = [800.0 - i * 0.5 for i in range(1300)]
+        b = bars(down)
+        b["t"] = [t for t in range(1_672_617_600, 1_672_617_600 + 3000 * 86400, 86400) if (t // 86400 + 3) % 7 < 5][:1300]   # weekdays only
+        r = screen.analyse(b, None)
+        sig = {s["k"]: s for s in screen.analyse(bars(down[:-1] + [r["ema9"] * 0.998]), None)["signals"]}
+        self.assertEqual(sig["t9d"]["d"], -1)
+        self.assertEqual(r["eslope"]["w200"], -1)
+        self.assertIsNotNone(r["wema200"])   # five years = about 260 weeks, enough for the 200-week EMA
+
+    def test_long_history_trimmed_but_emas_full(self):
+        c = [100.0 + math.sin(i / 20) * 10 for i in range(1300)]
+        r = screen.analyse(bars(c), None)
+        self.assertAlmostEqual(r["ema200"], screen.ema_series(c, 200)[-1])
+        self.assertEqual(len(r["spark"]), 45)
+        cp = screen.chart_payload(bars(c))
+        self.assertEqual(len(cp["c"]), screen.KEEP)
+        # the chart continues the EMA from its seed and lands on the same value as the tables
+        k, e = 2 / 201, cp["e"]["200"]
+        for x in cp["c"]:
+            e = x * k + e * (1 - k)
+        self.assertAlmostEqual(e, r["ema200"], places=3)
 
     def test_short_history(self):
         r = screen.analyse(bars([10.0, 11.0, 12.0]), {"m1": 0, "m3": 0})
