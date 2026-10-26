@@ -38,6 +38,7 @@ table.trk td.nm a.stk{font-size:15px;font-weight:600}
 .tag.ext{color:var(--mute)}
 table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
 .tag{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid currentColor;vertical-align:1px}
+#bsel{padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12px}
 #q{padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12px;min-width:170px}
 details.stats{margin:14px 0}
 details.stats>summary{cursor:pointer;font-weight:600;padding:10px 20px;color:var(--acc)}
@@ -134,31 +135,37 @@ const MAIN=[['breakouts','pullbacks','near_breakout'],['breakdowns','bounces','n
 const PICK_TAG={pick_best_long:'Best long',pick_best_short:'Best short',pick_clean_long:'Cleanest',pick_clean_short:'Cleanest',pick_extended:'Extended: do not chase'};
 const dp=v=>v==null?2:Math.abs(v)>=1000?0:Math.abs(v)>=100?1:2;
 const px=v=>v==null?'–':fmt(v,dp(v));
+// the selected brief (morning or a midday edition) and its windows: a midday edition adds the rest of that day first
+const BI=id=>(S.briefs||[]).find(x=>(x.id||x.session)===id)||{};
+const midday=()=>(BI(T.brief).edition||'morning')!=='morning';
+const HZ=()=>midday()&&S.intraday_horizon?[S.intraday_horizon,...S.horizons]:S.horizons;
+const hzName=h=>h===S.intraday_horizon?'Rest of day':h;
 function hzCell(r,h){
   const x=(r.res||{})[h];
   if(r.status!=='ok')return `<td class="hz pend">${esc(r.status)}</td>`;
   if(!x)return '<td class="hz">–</td>';
   if(x.pending)return `<td class="hz pend">due ${esc(x.due)}</td>`;
   const c=x.close||{},good=v=>v==null?'':(v*r.side>0?'up':v*r.side<0?'dn':'');
+  if(h===S.intraday_horizon)return `<td class="hz"><b class="${good(c.ret)}">${pc(c.ret)}</b><span class="hl">close ${px(x.px)}</span></td>`;
   return `<td class="hz"><b class="${good(c.ret)}">${pc(c.ret)}</b>
     <span class="hl"><i>H</i> ${px(x.hi)} <em class="${good(x.hi_pct)}">${pc(x.hi_pct)}</em></span>
     <span class="hl"><i>L</i> ${px(x.lo)} <em class="${good(x.lo_pct)}">${pc(x.lo_pct)}</em></span></td>`;
 }
 function glance(rows){
   const side=sd=>{const rs=rows.filter(r=>r.list===(sd>0?'all_long':'all_short'));
-    return S.horizons.map(h=>{const v=rs.map(r=>((r.res[h]||{}).close||{}).dir).filter(x=>x!=null),p=rs.filter(r=>(r.res[h]||{}).pending);
-      if(!v.length)return `<div class="row"><span>${h}</span><b class="mu">${p.length?`${p.length} due ${esc(p.map(r=>r.res[h].due).sort()[0])}`:'–'}</b></div>`;
+    return HZ().map(h=>{const v=rs.map(r=>((r.res[h]||{}).close||{}).dir).filter(x=>x!=null),p=rs.filter(r=>(r.res[h]||{}).pending);
+      if(!v.length)return `<div class="row"><span>${hzName(h)}</span><b class="mu">${p.length?`${p.length} due ${esc(p.map(r=>r.res[h].due).sort()[0])}`:'–'}</b></div>`;
       const m=v.reduce((a,b)=>a+b,0)/v.length,hit=Math.round(100*v.filter(x=>x>0).length/v.length);
-      return `<div class="row"><span>${h}</span><b><span class="${cls(m)}">${pc(m)}</span> · ${hit}% right <small class="mu">(${v.length}${p.length?`, ${p.length} to come`:''})</small></b></div>`}).join('')};
-  const b=S.briefs.find(x=>x.session===T.brief)||{};
+      return `<div class="row"><span>${hzName(h)}</span><b><span class="${cls(m)}">${pc(m)}</span> · ${hit}% right <small class="mu">(${v.length}${p.length?`, ${p.length} to come`:''})</small></b></div>`}).join('')};
+  const b=BI(T.brief);
   return `<div class="cards">
     <div class="card"><div class="nm">Long setups: average move</div>${side(1)}</div>
     <div class="card"><div class="nm">Short setups: average move <small class="mu">(a fall counts as a gain)</small></div>${side(-1)}</div>
-    <div class="card"><div class="nm">Leaders' health call that morning</div><div class="big ${b.status==='Healthy'?'up':b.status==='Risk-off'?'dn':''}" style="font-size:18px">${esc(b.status||'–')}</div>
-      <div class="row"><span>US session</span><b>${esc(T.brief)}</b></div><div class="row"><span>Scored</span><b>${esc(S.generated.slice(0,16).replace('T',' '))} UTC</b></div></div></div>`;
+    <div class="card"><div class="nm">Leaders' health call${midday()?' at that build':' that morning'}</div><div class="big ${b.status==='Healthy'?'up':b.status==='Risk-off'?'dn':''}" style="font-size:18px">${esc(b.status||'–')}</div>
+      <div class="row"><span>${midday()?'Edition':'US session'}</span><b>${esc(midday()?b.label:b.session||T.brief)}</b></div><div class="row"><span>Scored</span><b>${esc(S.generated.slice(0,16).replace('T',' '))} UTC</b></div></div></div>`;
 }
 function trackerHTML(){
-  const briefs=S.rows_briefs.slice().sort().reverse();
+  const briefs=S.rows_briefs.slice().reverse();   // newest first: mornings and midday editions in publishing order
   if(!T.brief||!briefs.includes(T.brief))T.brief=briefs[0];
   const all=S.rows.filter(r=>r.brief===T.brief);
   const picks={};all.filter(r=>r.list.startsWith('pick_')).forEach(r=>(picks[r.sym]=picks[r.sym]||[]).push(PICK_TAG[r.list]));
@@ -171,22 +178,24 @@ function trackerHTML(){
       if(by==='clean'){const d=pickRank(picks[a.sym])-pickRank(picks[b.sym]);if(d)return d}
       else if(by!=='rank'){const x=dirOf(a,by),y=dirOf(b,by);if(x==null&&y!=null)return 1;if(y==null&&x!=null)return -1;if(x!=null&&y!=null&&x!==y)return y-x}
       return idx.get(a)-idx.get(b)})};
-  const head=`<tr><th style="text-align:left">Stock</th><th>Entry<small>signal close</small></th>${S.horizons.map(h=>`<th class="sortable ${T.sort===h?'on':''}" data-sort="${h}" title="Sort by ${h}: best for the trade first">${h}${T.sort===h?' ▼':''}<small>close · high · low</small></th>`).join('')}</tr>`;
+  if(T.sort===S.intraday_horizon&&!midday())T.sort='rank';
+  const head=`<tr><th style="text-align:left">Stock</th><th>Entry<small>${midday()?'price at the update':'signal close'}</small></th>${HZ().map(h=>`<th class="sortable ${T.sort===h?'on':''}" data-sort="${h}" title="Sort by ${hzName(h)}: best for the trade first">${hzName(h)}${T.sort===h?' ▼':''}<small>${h===S.intraday_horizon?'update to close':'close · high · low'}</small></th>`).join('')}</tr>`;
   const body=MAIN.map(l=>{
     const rs=order(all.filter(r=>r.list===l&&keep(r)));if(!rs.length)return '';
-    return `<tr class="lhead"><td colspan="${S.horizons.length+2}"><span class="lt ${l.startsWith('break')||l==='near_breakdown'||l==='bounces'||l==='deteriorating'||l==='leaders_lag'?'dn':'up'}">${esc(S.labels[l]||l)}</span> <span class="mu">${rs.length} stock${rs.length>1?'s':''}</span></td></tr>`+rs.map(r=>
+    return `<tr class="lhead"><td colspan="${HZ().length+2}"><span class="lt ${l.startsWith('break')||l==='near_breakdown'||l==='bounces'||l==='deteriorating'||l==='leaders_lag'?'dn':'up'}">${esc(S.labels[l]||l)}</span> <span class="mu">${rs.length} stock${rs.length>1?'s':''}</span></td></tr>`+rs.map(r=>
       `<tr class="${pickRank(picks[r.sym])<2?'pick':pickRank(picks[r.sym])===3?'ext':''}"><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag ${PICK_RANK[t]===3?'ext':'pick'}">${PICK_RANK[t]===3?'':'★ '}${esc(t)}</span>`).join('')}
         <small>${esc(r.name||'')}</small><small class="why">${esc(r.why||'')}</small>${r.flag?`<small class="warn">⚠ ${esc(r.flag)}</small>`:''}</td>
-        <td class="hz"><b>${px(r.entry_close)}</b><span class="hl">${esc(r.cur||'')} · ${esc(r.signal_day||'')}</span></td>${S.horizons.map(h=>hzCell(r,h)).join('')}</tr>`).join('')}).join('');
+        <td class="hz"><b>${px(r.entry_close)}</b><span class="hl">${esc(r.cur||'')} · ${esc(r.signal_day||'')}</span></td>${HZ().map(h=>hzCell(r,h)).join('')}</tr>`).join('')}).join('');
   const chip=(k,v,l)=>`<span class="fchip ${T[k]===v?'on':''}" data-t="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
-  return `<section id="tracker"><h2>Setups from the brief of ${esc(T.brief)}</h2>
-   <div class="filters" style="margin-bottom:10px"><div class="grp"><span class="lbl">Brief</span>${briefs.map(b=>chip('brief',b,b)).join('')}</div>
+  return `<section id="tracker"><h2>Setups from ${esc(BI(T.brief).label||'the brief of '+T.brief)}</h2>
+   <div class="filters" style="margin-bottom:10px"><div class="grp"><label class="lbl" for="bsel">Brief</label><select id="bsel">${briefs.map(b=>`<option value="${esc(b)}"${b===T.brief?' selected':''}>${esc(BI(b).label||b)}</option>`).join('')}</select></div>
      <div class="grp"><span class="lbl">Show</span>${chip('side','all','All')}${chip('side','long','Longs')}${chip('side','short','Shorts')}${chip('side','picks','★ Cleanest picks')}</div>
-     <div class="grp"><span class="lbl">Sort</span>${chip('sort','rank','Brief order')}${chip('sort','clean','Cleanest first')}${S.horizons.map(h=>chip('sort',h,h)).join('')}</div>
+     <div class="grp"><span class="lbl">Sort</span>${chip('sort','rank','Brief order')}${chip('sort','clean','Cleanest first')}${HZ().map(h=>chip('sort',h,hzName(h))).join('')}</div>
      <input id="q" type="search" placeholder="Find a ticker or name" value="${esc(T.q)}"></div>
    ${glance(all)}
-   <div class="scroll" style="margin-top:12px"><table class="trk">${head}${body||`<tr><td colspan="${S.horizons.length+2}" class="mu">No setups match.</td></tr>`}</table></div>
+   <div class="scroll" style="margin-top:12px"><table class="trk">${head}${body||`<tr><td colspan="${HZ().length+2}" class="mu">No setups match.</td></tr>`}</table></div>
    <div class="note">Windows are counted in the stock's own trading sessions after the brief's signal bar: 1D = next session, 1W = 5 sessions, 20D = 20 sessions.
+   Midday editions (Asia: non-US stocks at the first build from 12:00; US: US stocks 1 hour after the open) are measured from the price at that build, with Rest of day (that build to the day's close) first; the statistics and positions below use the morning brief only.
    Brief order is the screener's own ranking: breakouts, pullbacks and Improving by 3-month strength against the S&amp;P 500 (strongest first), breakdowns, bounces and Deteriorating by the same measure weakest first, near breakout / breakdown by the distance to the level (nearest first), leaders as listed. Sorting by 1D, 1W or 20D puts the best result for the trade first (the biggest rise for a long, the biggest fall for a short); stocks still waiting go last.
    ★ marks the brief's own Best and Cleanest calls from Notion; rows the brief flagged as extended are dimmed.
    The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.
@@ -223,7 +232,7 @@ function positionsHTML(){
 }
 function filtersHTML(){
   const chip=(k,v,l)=>`<span class="fchip ${F[k]===v?'on':''}" data-f="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
-  const briefs=S.rows_briefs,hs=[...new Set(S.briefs.map(b=>b.status).filter(Boolean))];
+  const briefs=S.rows_briefs.filter(b=>(BI(b).edition||'morning')==='morning'),hs=[...new Set(S.briefs.map(b=>b.status).filter(Boolean))];
   return `<section id="filters"><div class="filters">
     <div class="grp"><span class="lbl">Measure</span>${Object.entries(MEASURES).map(([k,l])=>chip('measure',k,l)).join('')}</div>
     <div class="grp"><span class="lbl">Entry</span>${chip('entry','close','Signal close')}${chip('entry','open','Next open')}</div>
@@ -236,7 +245,7 @@ function overviewHTML(){
   const n=S.rows.filter(r=>!r.list.startsWith('pick_')&&!r.list.startsWith('all_')).length;
   const done=h=>S.rows.filter(r=>!r.list.startsWith('pick_')&&!r.list.startsWith('all_')&&r.res&&r.res[h]&&!r.res[h].pending&&r.status==='ok').length;
   return `<section id="overview"><h2>Overview</h2><div class="cards">
-   <div class="card"><div class="nm">Briefs tracked</div><div class="big">${S.briefs.length}</div><div class="row"><span>First · latest</span><b>${esc(S.briefs[0]?.session||'–')} · ${esc(S.briefs[S.briefs.length-1]?.session||'–')}</b></div></div>
+   <div class="card"><div class="nm">Briefs tracked</div><div class="big">${S.briefs.filter(b=>(b.edition||"morning")==="morning").length}</div><div class="row"><span>Midday editions</span><b>${S.briefs.filter(b=>(b.edition||"morning")!=="morning").length}</b></div><div class="row"><span>First · latest</span><b>${esc(S.briefs[0]?.session||'–')} · ${esc(S.briefs[S.briefs.length-1]?.session||'–')}</b></div></div>
    <div class="card"><div class="nm">Setups scored</div><div class="big">${n}</div>${S.horizons.map(h=>`<div class="row"><span>${h} results in</span><b>${done(h)} of ${n}</b></div>`).join('')}</div>
    <div class="card"><div class="nm">Prices</div><div class="big" style="font-size:16px">${esc(S.price_source)}</div><div class="row"><span>Scored</span><b>${esc(S.generated.replace('T',' '))}</b></div><div class="row"><span>All-stocks baseline</span><b>${S.universe_baseline?'yes':'no'}</b></div></div></div></section>`;
 }
@@ -248,6 +257,7 @@ function render(){
   document.querySelectorAll('[data-t]').forEach(c=>c.onclick=()=>{T[c.dataset.t]=c.dataset.v;render()});
   document.querySelectorAll('table.trk th[data-sort]').forEach(c=>c.onclick=()=>{T.sort=T.sort===c.dataset.sort?'rank':c.dataset.sort;render()});
   document.querySelectorAll('[data-ps]').forEach(c=>c.onclick=()=>{PS.view=c.dataset.ps;render()});
+  const bs=document.getElementById('bsel');if(bs)bs.onchange=()=>{T.brief=bs.value;render()};
   const q=document.getElementById('q');q.oninput=()=>{T.q=q.value;const p=q.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)};
 }
 fetch('scorecard.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('scorecard.json not built yet: the tracker runs after each rebuild');return r.json()}).then(s=>{

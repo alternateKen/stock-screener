@@ -225,6 +225,76 @@ class Bloomberg(unittest.TestCase):
         self.assertEqual(out["res"]["1D"]["day"], "2026-10-26")
 
 
+class MiddayEditions(unittest.TestCase):
+    def test_windows(self):
+        f = lambda x: datetime.fromisoformat(x)   # noqa: E731
+        self.assertEqual(tb.midday_edition(f("2026-10-27T04:05:00+00:00"), False), ("asia", date(2026, 10, 27)))   # 12:05 local
+        self.assertIsNone(tb.midday_edition(f("2026-10-27T02:05:00+00:00"), False))                               # 10:05: too early
+        self.assertEqual(tb.midday_edition(f("2026-10-27T14:35:00+00:00"), True), ("us", date(2026, 10, 27)))      # 65 min after the open
+        self.assertIsNone(tb.midday_edition(f("2026-10-27T14:05:00+00:00"), True))                                # 35 min after: not yet
+        # after the clocks change the open is 14:30 UTC, so 15:05 is too soon and 15:35 is the first
+        self.assertIsNone(tb.midday_edition(f("2026-11-03T15:05:00+00:00"), True))
+        self.assertEqual(tb.midday_edition(f("2026-11-03T15:35:00+00:00"), True), ("us", date(2026, 11, 3)))
+        self.assertEqual(tb.us_open_utc(date(2026, 11, 3)).hour, 14)
+
+    def test_cards_split_by_market(self):
+        br = {"long": {"breakouts": [{"sym": "MSFT", "cur": "USD"}, {"sym": "2330 TT", "cur": "TWD"}]},
+              "improving": [{"sym": "NVDA", "cur": "USD"}]}
+        tb.edition_cards(br, "asia")
+        self.assertEqual([c["sym"] for c in br["long"]["breakouts"]], ["2330 TT"])
+        self.assertEqual(br["improving"], [])
+
+    def test_intraday_card_measured_from_its_midday_price(self):
+        closes = [100.0] * 30 + [102.0] + [110.0] * 10
+        raw, ds = chart(closes)
+        d = setup_dir({"AAA": raw})
+        p = tb.Prices(d, fetcher=Fake(), today=ds[-1] + timedelta(days=3))
+        card = {"sym": "AAA", "k": "AAA", "last": 101.0, "t0": raw["t"][30]}   # the build saw 101 during day 30
+        out = tb.score_card(card, 1, ds[30].isoformat(), p, p.today, intraday=True)
+        self.assertEqual(list(out["res"])[0], "Close")
+        self.assertAlmostEqual(out["res"]["Close"]["close"]["ret"], (102 / 101 - 1) * 100, places=1)
+        self.assertAlmostEqual(out["res"]["1D"]["close"]["ret"], (110 / 101 - 1) * 100, places=1)
+        self.assertNotIn("hi", out["res"]["Close"])
+
+    def test_live_day_is_pending(self):
+        raw, ds = chart([100.0] * 31)
+        d = setup_dir({"AAA": raw}, {"AAA": True})   # day 30 is still trading: dropped as a result
+        p = tb.Prices(d, fetcher=Fake(), today=ds[30])
+        out = tb.score_card({"sym": "AAA", "k": "AAA", "last": 100.5, "t0": raw["t"][30]}, 1, ds[30].isoformat(), p, p.today, intraday=True)
+        self.assertTrue(out["res"]["Close"]["pending"])
+
+    def test_archive_keeps_the_first_asia_build(self):
+        tb.ARCHIVE = tempfile.mkdtemp()
+        raw, ds = chart([100.0] * 31)
+        d = setup_dir({"2330.TW": raw, "MSFT": raw})
+        brief = {"generated": "2026-10-27T04:05:00+00:00", "us_session": "2026-10-26", "intraday": False,
+                 "long": {"breakouts": [{"sym": "2330 TT", "k": "2330.TW", "cur": "TWD", "last": 100.0},
+                                        {"sym": "MSFT", "k": "MSFT", "cur": "USD", "last": 100.0}]}}
+        with open(os.path.join(d, "brief.json"), "w") as f:
+            json.dump(brief, f)
+        dest = tb.archive(d)
+        self.assertTrue(dest.endswith("2026-10-27-asia.json"))
+        with open(dest) as f:
+            kept = json.load(f)
+        self.assertEqual((kept["edition"], kept["edition_date"]), ("asia", "2026-10-27"))
+        self.assertEqual([c["sym"] for c in kept["long"]["breakouts"]], ["2330 TT"])
+        self.assertEqual(kept["long"]["breakouts"][0]["t0"], raw["t"][-1])
+        brief["generated"] = "2026-10-27T04:35:00+00:00"   # a later build the same day is not kept
+        with open(os.path.join(d, "brief.json"), "w") as f:
+            json.dump(brief, f)
+        tb.archive(d)
+        with open(dest) as f:
+            self.assertEqual(json.load(f)["generated"], "2026-10-27T04:05:00+00:00")
+        self.assertEqual([tb.brief_id(b) for b in tb.load_archive()], ["2026-10-27 Asia midday"])
+
+    def test_labels(self):
+        m = {"us_session": "2026-10-23", "generated": "2026-10-25T22:40:00+00:00"}
+        a = {"us_session": "2026-10-23", "edition": "asia", "edition_date": "2026-10-26", "generated": "2026-10-26T04:05:00+00:00"}
+        self.assertEqual((tb.brief_id(m), tb.brief_id(a)), ("2026-10-23", "2026-10-26 Asia midday"))
+        self.assertEqual(tb.brief_label(m), "26 Oct morning (US 10-23)")
+        self.assertEqual(tb.brief_label(a), "26 Oct Asia midday")
+
+
 class EndToEnd(unittest.TestCase):
     def test_evaluate_writes_scorecard(self):
         tb.CACHE = tempfile.mkdtemp()
