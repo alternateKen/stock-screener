@@ -8,8 +8,8 @@
 <link rel="icon" href="data:,">
 <style>
 .pane{position:relative;width:100%}
-#main-pane{height:420px}#rsi-pane{height:130px}#macd-pane{height:150px}
-@media(max-width:700px){#main-pane{height:320px}#rsi-pane{height:110px}#macd-pane{height:120px}}
+#main-pane{height:clamp(560px,70vh,820px)}#rsi-pane{height:130px}#macd-pane{height:150px}
+@media(max-width:700px){#main-pane{height:440px}#rsi-pane{height:110px}#macd-pane{height:120px}}
 .legend{position:absolute;left:8px;top:4px;z-index:3;font-size:11px;font-variant-numeric:tabular-nums;pointer-events:none;background:color-mix(in srgb,var(--card) 80%,transparent);padding:2px 6px;border-radius:4px}
 .legend b{font-weight:600}.legend span{margin-right:8px;white-space:nowrap}
 .panetitle{font-size:11px;color:var(--mute);margin:8px 0 2px;text-transform:uppercase;letter-spacing:.05em}
@@ -60,7 +60,7 @@ function draw(){
   const up=css('--up'),dn=css('--dn'),c=C.c;
   const ma={...Object.fromEntries(EMAS.map(n=>['ema'+n,emaC(c,n)])),ma50:smaS(c,50),ma200:smaS(c,200)},rsi=rsiS(c),m=macdS(c);
   // price pane: candles, moving averages, volume underneath
-  const pc=LightweightCharts.createChart(document.getElementById('main-pane'),opts(420,true));
+  const pc=LightweightCharts.createChart(document.getElementById('main-pane'),opts(640,true));
   const cs=pc.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn});
   cs.setData(C.t.map((t,i)=>({time:t,open:C.o[i],high:C.h[i],low:C.l[i],close:c[i]})));
   const lines={};
