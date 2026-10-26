@@ -66,9 +66,10 @@ SUBLISTS = {
 }
 LONG_SETUPS, SHORT_SETUPS = ("breakouts", "pullbacks", "near_breakout"), ("breakdowns", "bounces", "near_breakdown")
 
-# home-market benchmark by Yahoo suffix (TOPIX via its ETF 1306.T: Yahoo's TOPIX index history is unreliable)
+# home-market benchmark by Yahoo suffix. Where Yahoo has no usable index history, an ETF tracking it stands in:
+# TOPIX = 1306.T, CSI 300 = 510300.SS (Huatai-PineBridge), SET50 = TDEX.BK (ThaiDEX)
 LOCAL_INDEX = {".KS": "^KS11", ".KQ": "^KQ11", ".TW": "^TWII", ".TWO": "^TWII", ".T": "1306.T", ".HK": "^HSI",
-               ".SS": "000300.SS", ".SZ": "000300.SS", ".AX": "^AXJO", ".BK": "^SET.BK", ".KL": "^KLSE",
+               ".SS": "510300.SS", ".SZ": "510300.SS", ".AX": "^AXJO", ".BK": "TDEX.BK", ".KL": "^KLSE",
                ".SI": "^STI", ".NS": "^NSEI", ".L": "^FTSE", ".DE": "^GDAXI", ".PA": "^FCHI", ".AS": "^AEX",
                ".SW": "^SSMI", ".TO": "^GSPTSE"}
 SPX = "^GSPC"
