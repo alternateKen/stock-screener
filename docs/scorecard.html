@@ -195,7 +195,7 @@ function trackerHTML(){
    ${glance(all)}
    <div class="scroll" style="margin-top:12px"><table class="trk">${head}${body||`<tr><td colspan="${HZ().length+2}" class="mu">No setups match.</td></tr>`}</table></div>
    <div class="note">Windows are counted in the stock's own trading sessions after the brief's signal bar: 1D = next session, 1W = 5 sessions, 20D = 20 sessions.
-   Midday editions (Asia: non-US stocks at the first build from 12:00; US: US stocks 30 minutes after the open) are measured from the price at that build, with Rest of day (that build to the day's close) first; the statistics and positions below use the morning brief only.
+   Midday editions (Asia: non-US stocks at the first build from 12:00; US: US stocks 1 hour after the open) are measured from the price at that build, with Rest of day (that build to the day's close) first; the statistics and positions below use the morning brief only.
    Brief order is the screener's own ranking: breakouts, pullbacks and Improving by 3-month strength against the S&amp;P 500 (strongest first), breakdowns, bounces and Deteriorating by the same measure weakest first, near breakout / breakdown by the distance to the level (nearest first), leaders as listed. Sorting by 1D, 1W or 20D puts the best result for the trade first (the biggest rise for a long, the biggest fall for a short); stocks still waiting go last.
    ★ marks the brief's own Best and Cleanest calls from Notion; rows the brief flagged as extended are dimmed.
    The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.

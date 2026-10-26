@@ -230,10 +230,11 @@ class MiddayEditions(unittest.TestCase):
         f = lambda x: datetime.fromisoformat(x)   # noqa: E731
         self.assertEqual(tb.midday_edition(f("2026-10-27T04:05:00+00:00"), False), ("asia", date(2026, 10, 27)))   # 12:05 local
         self.assertIsNone(tb.midday_edition(f("2026-10-27T02:05:00+00:00"), False))                               # 10:05: too early
-        self.assertEqual(tb.midday_edition(f("2026-10-27T14:05:00+00:00"), True), ("us", date(2026, 10, 27)))      # 35 min after the open
-        self.assertIsNone(tb.midday_edition(f("2026-10-27T13:50:00+00:00"), True))                                # 20 min after: not yet
-        # after the clocks change the open is 14:30 UTC, so 14:35 is too soon
-        self.assertIsNone(tb.midday_edition(f("2026-11-03T14:35:00+00:00"), True))
+        self.assertEqual(tb.midday_edition(f("2026-10-27T14:35:00+00:00"), True), ("us", date(2026, 10, 27)))      # 65 min after the open
+        self.assertIsNone(tb.midday_edition(f("2026-10-27T14:05:00+00:00"), True))                                # 35 min after: not yet
+        # after the clocks change the open is 14:30 UTC, so 15:05 is too soon and 15:35 is the first
+        self.assertIsNone(tb.midday_edition(f("2026-11-03T15:05:00+00:00"), True))
+        self.assertEqual(tb.midday_edition(f("2026-11-03T15:35:00+00:00"), True), ("us", date(2026, 11, 3)))
         self.assertEqual(tb.us_open_utc(date(2026, 11, 3)).hour, 14)
 
     def test_cards_split_by_market(self):

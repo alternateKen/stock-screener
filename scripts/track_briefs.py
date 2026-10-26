@@ -42,11 +42,11 @@ ENTRIES = ("close", "open")
 US_CLOSE_UTC_HOUR = 20      # 16:00 New York = 20:00 UTC (summer) / 21:00 UTC (winter); brief["intraday"] covers the gap
 LOCAL_UTC_HOURS = 8         # the owner's clock (Malaysia): the brief and the midday updates are timed on it
 # editions: the 06:30 morning brief, the Asia midday update (first build from 12:00 local, Asian stocks only) and the US
-# midday update (first build from 30 minutes after the US open, US stocks only). Midday setups are measured from their
+# midday update (first build from 1 hour after the US open, US stocks only). Midday setups are measured from their
 # price at that build, with a "Close" window (rest of that day) before 1D / 1W / 20D.
 EDITIONS = {"morning": "morning", "asia": "Asia midday", "us": "US midday"}
 ASIA_MIDDAY_UTC = (4, 9)    # 12:00-17:00 local
-US_SETTLE_MIN = 30
+US_SETTLE_MIN = 60
 CLOSE_H = ("Close", 0)
 
 # list key -> (section in brief.json, side: +1 long / -1 short, label)
