@@ -25,7 +25,7 @@ table.trk .hl em{font-style:normal}
 table.trk td.nm{vertical-align:top;min-width:200px}
 table.trk td.nm small{display:block;color:var(--mute);font-size:11px;white-space:normal}
 table.trk td.nm small.why{max-width:340px}
-table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
+#positions th small,table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
 .tag{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid currentColor;vertical-align:1px}
 .tag.pick{color:var(--acc)}
 #q{padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12px;min-width:170px}
@@ -169,6 +169,35 @@ function trackerHTML(){
    The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.
    Green means the move was in the trade's favour (up for a long, down for a short). <a href="scorecard.csv" style="color:var(--acc)">Download every result as CSV</a> for Excel.</div></section>`;
 }
+// ---- positions: each stock followed from its first appearance until the brief reverses it or 20 sessions pass ----
+const PS={view:'open'};
+function positionsHTML(){
+  const P=S.positions||[];if(!P.length)return '';
+  const R=S.pos_rules||{max:20,whipsaw:5},sm=S.pos_summary||{};
+  const sumRow=k=>{const x=sm[k];if(!x||!(x.open+x.closed))return '';
+    return `<tr><td class="nm">${esc(S.labels[k]||k)}</td><td>${x.open}</td><td>${x.closed}</td><td class="${cls(x.mean)}">${pc(x.mean)}</td><td>${x.hit==null?'–':x.hit+'%'}</td><td>${x.held==null?'–':x.held.toFixed(1)}</td><td>${x.flip==null?'–':x.flip+'%'}</td><td>${x.whipsaw==null?'–':x.whipsaw+'%'}</td><td>${pc(x.giveback)}</td></tr>`};
+  const good=(v,side)=>v==null?'':(v*side>0?'up':v*side<0?'dn':'');
+  const rows=P.filter(p=>p.status===PS.view).slice(0,PS.view==='open'?400:150);
+  const body=rows.map(p=>`<tr><td class="nm"><a class="stk" href="${chartUrl(p.k)}">${esc(p.sym)}</a> <span class="tag ${p.side>0?'up':'dn'}">${p.side>0?'long':'short'}</span>${p.whipsaw?' <span class="tag dn">whipsaw</span>':''}
+      <small>${esc(p.name||'')}</small><small>Opened from ${esc(S.labels[p.list]||p.list)}${p.repeats?` · repeated in ${p.repeats} later brief${p.repeats>1?'s':''}`:''}${p.src==='bbg'?' · Bloomberg':''}</small></td>
+    <td class="hz"><b>${px(p.entry)}</b><span class="hl">${esc(p.cur||'')} · ${esc(p.entry_day)}</span></td>
+    <td class="hz">${p.held}<span class="hl">sessions</span></td>
+    <td class="hz"><b class="${good(p.ret,p.side)}">${pc(p.ret)}</b><span class="hl">${px(p.px)} · ${esc(p.status==='open'?p.last_day:p.exit_day)}</span></td>
+    <td class="hz">${px(p.hi)}<span class="hl ${good(p.hi_pct,p.side)}">${pc(p.hi_pct)}</span></td>
+    <td class="hz">${px(p.lo)}<span class="hl ${good(p.lo_pct,p.side)}">${pc(p.lo_pct)}</span></td>
+    <td class="hz">${p.best_dir==null?'–':pc(p.best_dir)}<span class="hl">gave back ${p.giveback==null?'–':p.giveback.toFixed(1)+' pts'}</span></td>
+    ${PS.view==='closed'?`<td class="hz">${esc(p.reason)}<span class="hl">${esc(p.exit_day)}</span></td>`:''}</tr>`).join('');
+  const chip=(v,l,n)=>`<span class="fchip ${PS.view===v?'on':''}" data-ps="${v}">${l} (${n})</span>`;
+  return `<section id="positions"><h2>Positions: each stock until the brief reverses it</h2>
+   <div class="scroll"><table><tr><th style="text-align:left">Opened from</th><th>Open</th><th>Closed</th><th>Avg result<small>closed, shorts flipped</small></th><th>Right</th><th>Avg held<small>sessions</small></th><th>Closed by a flip</th><th>Whipsaw<small>flip within ${R.whipsaw}</small></th><th>Avg giveback<small>best close to exit</small></th></tr>
+   ${['breakouts','pullbacks','near_breakout','all_long','breakdowns','bounces','near_breakdown','all_short'].map(sumRow).join('')}</table></div>
+   <div class="filters" style="margin:12px 0 8px">${chip('open','Open',P.filter(p=>p.status==='open').length)}${chip('closed','Closed',P.filter(p=>p.status==='closed').length)}</div>
+   <div class="scroll"><table class="trk"><tr><th style="text-align:left">Stock</th><th>Entry</th><th>Held</th><th>${PS.view==='open'?'Now':'At exit'}</th><th>High</th><th>Low</th><th>Best close</th>${PS.view==='closed'?'<th>Closed by</th>':''}</tr>${body||'<tr><td colspan="8" class="mu">None yet.</td></tr>'}</table></div>
+   <div class="note">A position opens the first time a stock appears in a long or short setup list and stays open while later briefs repeat that direction.
+   It closes when a brief lists the stock on the other side (a flip, at that brief's signal close, and a new position opens there) or after ${R.max} sessions.
+   High and low are the highest and lowest prices traded while it was open. Giveback is how far the exit was from the best close, in percentage points.
+   This does not cut short the setup results above: every appearance keeps its own 1D, 1W and 20D windows. <a href="positions.csv" style="color:var(--acc)">Download positions as CSV</a>.</div></section>`;
+}
 function filtersHTML(){
   const chip=(k,v,l)=>`<span class="fchip ${F[k]===v?'on':''}" data-f="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
   const briefs=S.rows_briefs,hs=[...new Set(S.briefs.map(b=>b.status).filter(Boolean))];
@@ -190,15 +219,16 @@ function overviewHTML(){
 }
 function render(){
   const open=document.getElementById('stats')?.open;
-  document.getElementById('main').innerHTML=trackerHTML()+`<details id="stats" class="stats"${open?' open':''}><summary>Statistics across all briefs: hit rates, mechanics, health call, themes</summary>`
+  document.getElementById('main').innerHTML=trackerHTML()+positionsHTML()+`<details id="stats" class="stats"${open?' open':''}><summary>Statistics across all briefs: hit rates, mechanics, health call, themes</summary>`
     +overviewHTML()+filtersHTML()+summaryHTML()+mechanicsHTML()+healthHTML()+themesHTML()+'</details>';
   document.querySelectorAll('[data-f]').forEach(c=>c.onclick=()=>{F[c.dataset.f]=c.dataset.v;render()});
   document.querySelectorAll('[data-t]').forEach(c=>c.onclick=()=>{T[c.dataset.t]=c.dataset.v;render()});
+  document.querySelectorAll('[data-ps]').forEach(c=>c.onclick=()=>{PS.view=c.dataset.ps;render()});
   const q=document.getElementById('q');q.oninput=()=>{T.q=q.value;const p=q.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)};
 }
 fetch('scorecard.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('scorecard.json not built yet: the tracker runs after each rebuild');return r.json()}).then(s=>{
   S=s;document.getElementById('stamp').textContent='Scored '+new Date(s.generated).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('nav').innerHTML=[['tracker','Setups'],['stats','Statistics'],['brief.html','Brief']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
+  document.getElementById('nav').innerHTML=[['tracker','Setups'],['positions','Positions'],['stats','Statistics'],['brief.html','Brief']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
   render();
 }).catch(e=>{document.getElementById('stamp').textContent='';document.getElementById('main').innerHTML=`<section><h2>Scorecard not available</h2><p>${esc(e.message)}</p></section>`});
 </script>

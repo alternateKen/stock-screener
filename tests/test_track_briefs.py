@@ -166,6 +166,65 @@ class Window(unittest.TestCase):
         self.assertFalse(tb.in_brief_window(f("2026-10-22T21:05:00+00:00"), "2026-10-23", False))
 
 
+class Positions(unittest.TestCase):
+    """A stock long in one brief and short in a later one: one closed position (the flip) and one open."""
+    class P:
+        def __init__(self, b):
+            self.b = b
+
+        def get(self, k):
+            return self.b
+
+    def setUp(self):
+        closes = [100.0] * 5 + [100.0, 104.0, 108.0, 106.0, 103.0, 101.0, 99.0, 97.0] + [97.0] * 30
+        raw, self.ds = chart(closes)
+        self.b = tb.Prices._clean(raw)
+
+    def row(self, i, side, lst):
+        return {"k": "MER", "sym": "4385 JT", "brief": self.ds[i].isoformat(), "signal_day": self.ds[i].isoformat(),
+                "side": side, "list": lst, "status": "ok"}
+
+    def test_flip_closes_and_reopens(self):
+        rows = [self.row(5, 1, "pullbacks"), self.row(7, 1, "breakouts"), self.row(9, -1, "bounces")]
+        short = {x: v[:18] for x, v in self.b.items() if isinstance(v, list)}   # the new short is still open
+        ps = tb.positions(rows, self.P({**self.b, **short}))
+        closed = [p for p in ps if p["status"] == "closed"]
+        self.assertEqual(len(closed), 1)
+        c = closed[0]
+        self.assertEqual((c["reason"], c["side"], c["held"], c["repeats"]), ("flip", 1, 4, 1))
+        self.assertAlmostEqual(c["ret"], 3.0)                 # 100 -> 103 at the flip brief's close
+        self.assertAlmostEqual(c["hi"], 108.0 * 1.01)         # highest high before the flip
+        self.assertAlmostEqual(c["best_dir"], 8.0)
+        self.assertAlmostEqual(c["giveback"], 5.0)            # best close +8%, closed at +3%
+        self.assertTrue(c["whipsaw"])                         # reversed within 5 sessions
+        o = [p for p in ps if p["status"] == "open"][0]
+        self.assertEqual((o["side"], o["entry"], o["entry_day"]), (-1, 103.0, self.ds[9].isoformat()))
+
+    def test_closes_after_20_sessions(self):
+        ps = tb.positions([self.row(5, 1, "pullbacks")], self.P(self.b))
+        self.assertEqual((ps[0]["status"], ps[0]["reason"], ps[0]["held"]), ("closed", "20 sessions", 20))
+        s = tb.positions_summary(ps)["pullbacks"]
+        self.assertEqual((s["closed"], s["flip"]), (1, 0))
+
+
+class Bloomberg(unittest.TestCase):
+    def test_bbg_file_is_used_and_dated_by_trading_day(self):
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, "bbg_daily.json")
+        with open(p, "w") as f:
+            json.dump({"asof": "2026-10-27", "prices": {"CSL.AX": {"d": ["2026-10-22", "2026-10-23", "2026-10-26"],
+                       "o": [196, 197, 195], "h": [198, 199, 196], "l": [195, 196, 191], "c": [197, 196.7, 195.1]}}}, f)
+        pr = tb.Prices(None, fetch=True, fetcher=Fake(), today=date(2026, 10, 27), bbg=p)
+        b = pr.get("CSL.AX")
+        self.assertEqual(b["src"], "bbg")
+        # the stamped Yahoo t0 is ignored for Bloomberg bars; the 23 Oct bar is the signal bar for the 23 Oct US session
+        i = tb.signal_index(b, {"t0": 12345, "last": 196.7}, "2026-10-23")
+        self.assertEqual(b["d"][i], date(2026, 10, 23))
+        out = tb.score_card({"sym": "CSL AU", "k": "CSL.AX", "last": 196.7}, 1, "2026-10-23", pr, pr.today)
+        self.assertEqual(out["px_src"], "bbg")
+        self.assertEqual(out["res"]["1D"]["day"], "2026-10-26")
+
+
 class EndToEnd(unittest.TestCase):
     def test_evaluate_writes_scorecard(self):
         tb.CACHE = tempfile.mkdtemp()
