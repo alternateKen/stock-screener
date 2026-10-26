@@ -7,8 +7,10 @@ each time it:
   3. otherwise fetches consensus for every theme stock and uploads it to GitHub in ONE commit,
   4. and adds names from the worksheet exports in %USERPROFILE%\\bbg_sync\\worksheets that the site lacks to the Inbox.
 
-Only derived numbers are uploaded: upside to the consensus target, % buy ratings, consensus rating, number of analysts,
-the 4-week EPS revision, and Bloomberg's 50 / 200-day averages (used to cross-check the screener's price data).
+Only derived numbers are uploaded to the public screener: upside to the consensus target, % buy ratings, consensus rating,
+number of analysts, the 4-week EPS revision, and Bloomberg's 50 / 200-day averages (used to cross-check the screener's
+price data). Daily prices for the brief tracker (every stock in the briefs of the last 45 days, plus the benchmark
+indices) go to a separate PRIVATE repository, stock-screener-prices, and never to the public site.
 
 Usage
   python bbg_sync.py --test                 5 stocks only, saves a file on the Desktop, uploads NOTHING
@@ -29,6 +31,10 @@ CONSENSUS_FROM = date(2026, 10, 25)    # runs allowed from this day (the daily s
 # The sync keeps its own count and stops rather than go past these.
 BUDGET_SECS_MONTH = 2500
 BUDGET_HITS_DAY = 300_000
+# Brief tracker prices: daily open / high / low / close for every stock in a recent morning brief, uploaded to a PRIVATE
+# repository (raw Bloomberg prices never go to the public site). The PC that scores the briefs pulls them from there.
+PRICES_REPO = "stock-screener-prices"
+TRACK_DAYS = 45                        # briefs from the last 45 days still have a 20-session window or position open
 HOME = os.path.join(os.path.expanduser("~"), "bbg_sync")          # token.txt lives here
 STATE_DIR = os.path.join(os.environ.get("LOCALAPPDATA", HOME), "bbg_sync")
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -376,6 +382,85 @@ def consensus(bbg, gh, st, sample=False, extra=()):
                        "bma50 / bma200 = Bloomberg's 50 / 200-day moving averages, used to cross-check the screener's data",
                "stocks": out}
     return {"data/bloomberg_consensus.json": json.dumps(payload, separators=(",", ":"), sort_keys=True)}
+
+
+# ---------------- brief tracker prices (private) ----------------
+# the tracker's benchmarks (scripts/track_briefs.py SPX / LOCAL_INDEX keys) -> Bloomberg indices; the ETF keys get the
+# real index here (TOPIX, CSI 300, SET50)
+INDEX_BBG = {"^GSPC": "SPX Index", "^KS11": "KOSPI Index", "^KQ11": "KOSDAQ Index", "^TWII": "TWSE Index",
+             "1306.T": "TPX Index", "^HSI": "HSI Index", "510300.SS": "SHSZ300 Index", "^AXJO": "AS51 Index",
+             "TDEX.BK": "SET50 Index", "^KLSE": "FBMKLCI Index", "^STI": "FSSTI Index", "^NSEI": "NIFTY Index",
+             "^FTSE": "UKX Index", "^GDAXI": "DAX Index", "^FCHI": "CAC Index", "^AEX": "AEX Index", "^SSMI": "SMI Index",
+             "^GSPTSE": "SPTSX Index"}
+YAHOO_TO_BBG = {**BBG_SFX, ".BK": "TB", ".KL": "MK"}
+OHLC = ["PX_OPEN", "PX_HIGH", "PX_LOW", "PX_LAST"]
+
+
+def brief_security(card):
+    """A brief's stock card -> Bloomberg security: its own code when written Bloomberg-style ('005930 KS', 'BRK/B US'),
+    else from the screener key ('8869.KL' -> '8869 MK Equity', 'MSFT' -> 'MSFT US Equity')."""
+    sym, k = (card.get("sym") or "").strip(), card.get("k") or ""
+    if re.match(r"^\S+(\s+\S+)*\s+[A-Z][A-Z0-9]$", sym):
+        return bbg_code(sym)
+    m = re.match(r"^(.+?)(\.[A-Z]{1,3})$", k)
+    if m and m.group(2) in YAHOO_TO_BBG:
+        base = m.group(1).lstrip("0") or "0" if m.group(2) == ".HK" else m.group(1)
+        return f"{base} {YAHOO_TO_BBG[m.group(2)]} Equity"
+    return None if "." in k or k.startswith("^") else k.replace("-", "/") + " US Equity"
+
+
+def brief_cards(brief):
+    """Every stock card in a brief.json archive entry (the lists the tracker scores)."""
+    for side in ("long", "short"):
+        for cards in (brief.get(side) or {}).values():
+            yield from cards or []
+    for key in ("improving", "deteriorating"):
+        yield from brief.get(key) or []
+    for cards in ((brief.get("leaders") or {}).get("tiers") or {}).values():
+        yield from cards or []
+
+
+def tracker_prices(bbg, gh, st, sample=False):
+    """Daily OHLC from the oldest tracked brief's session (less a week) to today, for every stock in the briefs of the
+    last TRACK_DAYS days and the tracker's benchmark indices. -> {"bbg_daily.json": text} for PRICES_REPO, or None."""
+    names = sorted((f["name"] for f in gh.list_dir(SCREENER_REPO, "data/briefs") if re.match(r"\d{4}-\d{2}-\d{2}\.json$", f["name"])),
+                   reverse=True)
+    since = date.today() - timedelta(days=TRACK_DAYS)
+    names = [n for n in names if date.fromisoformat(n[:10]) >= since][:2 if sample else None]
+    if not names:
+        say("  [..]  Brief tracker prices: no briefs archived in the last 45 days yet")
+        return None
+    secs = {}
+    for n in names:
+        for card in brief_cards(json.loads(gh.read(SCREENER_REPO, f"data/briefs/{n}"))):
+            sec = brief_security(card)
+            if sec and card.get("k"):
+                secs.setdefault(card["k"], sec)
+    if sample:
+        secs = dict(list(secs.items())[:5])
+    secs.update({k: v for k, v in INDEX_BBG.items() if not sample or k == "^GSPC"})
+    start = date.fromisoformat(min(names)[:10]) - timedelta(days=7)
+    days = (date.today() - start).days * 5 // 7 + 2
+    ok, why = affordable(st, bbg, sorted(set(secs.values())), len(set(secs.values())) * days * len(OHLC))
+    if not ok:
+        say(f"  [!!]  Brief tracker prices skipped to stay inside the Bloomberg allowance: {why}")
+        return None
+    h, errs = bbg.hist(sorted(set(secs.values())), OHLC, start)
+    out = {}
+    for k, sec in secs.items():
+        rows = h.get(sec) or []
+        if rows:
+            out[k] = {"d": [d.isoformat() for d, _ in rows], **{x: [num(v.get(f)) for _, v in rows] for x, f in zip("ohlc", OHLC)}}
+    miss = sorted(k for k in secs if k not in out)
+    say(f"  [{'OK' if out else '!!'}]  Brief tracker prices: {len(out)} of {len(secs)} securities from {start:%d %b} ({len(names)} briefs)"
+        + (f"; none for {', '.join(miss[:8])}" + (" ..." if len(miss) > 8 else "") if miss else ""))
+    if not out:
+        return None
+    payload = {"asof": datetime.now().astimezone().isoformat(timespec="minutes"), "source": "Bloomberg",
+               "note": "PRIVATE: daily PX_OPEN / PX_HIGH / PX_LOW / PX_LAST by screener key, dated by each market's trading day. "
+                       "Read by scripts/track_briefs.py evaluate --bbg=FILE. Do not publish.",
+               "prices": out}
+    return {"bbg_daily.json": json.dumps(payload, separators=(",", ":"), sort_keys=True)}
 
 
 # ---------------- GitHub (one commit per repository, no Git needed) ----------------
@@ -737,13 +822,21 @@ def run(mode, typed=()):
         except Exception as e:  # noqa: BLE001
             say(f"  [!!]  Screener consensus failed: {e}")
             log(traceback.format_exc())
+        prices = {}
+        if gh:   # needs the token to read the archived briefs; a test without one skips it
+            try:
+                say("  ...   brief tracker prices: " + ("a 5-stock sample" if mode == "test" else "every stock in the recent briefs"))
+                prices = tracker_prices(bbg, gh, st, sample=mode == "test") or {}
+            except Exception as e:  # noqa: BLE001
+                say(f"  [!!]  Brief tracker prices failed: {e}")
+                log(traceback.format_exc())
         record_usage(st, bbg)
         u = usage(st)
         say(f"  [..]  Bloomberg allowance used by this sync: {len(u['secs']):,} unique securities this month "
             f"(budget {BUDGET_SECS_MONTH:,}), {u['hits']:,} hits today (budget {BUDGET_HITS_DAY:,})")
         if mode == "test":
             out = os.path.join(os.path.expanduser("~"), "Desktop", "bloomberg_test_output")
-            for p, c in files.items():
+            for p, c in list(files.items()) + [(f"private/{p}", c) for p, c in prices.items()]:
                 fp = os.path.join(out, *p.split("/"))
                 os.makedirs(os.path.dirname(fp), exist_ok=True)
                 with open(fp, "w", encoding="utf-8", newline="") as f:
@@ -753,6 +846,13 @@ def run(mode, typed=()):
             changed = gh.commit(SCREENER_REPO, files, f"Bloomberg sync {now:%Y-%m-%d %H:%M} ({kind})")
             say(f"  [OK]  {SCREENER_REPO}: {'uploaded ' + str(len(files)) + ' files' if changed else 'no changes'}")
             st["consensus_day"] = now.date().isoformat()
+        if prices and mode != "test":
+            try:
+                changed = gh.commit(PRICES_REPO, prices, f"Bloomberg prices {now:%Y-%m-%d %H:%M}")
+                say(f"  [OK]  {PRICES_REPO} (private): {'uploaded bbg_daily.json' if changed else 'no changes'}")
+            except urllib.error.HTTPError as e:
+                say(f"  [!!]  Could not upload to the private repository {OWNER}/{PRICES_REPO} (HTTP {e.code}): "
+                    "create it on github.com as Private with a README, and give the token access to it (SETUP.md, step 10)")
         save_state(st)
         log("\n".join(REPORT))
         return 0

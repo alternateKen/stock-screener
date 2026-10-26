@@ -11,9 +11,13 @@ Commands
   import-notion FILE.md [--session=YYYY-MM-DD] [--force]
                                Rebuild an archive entry from a Notion brief page saved as Markdown. Also reads the
                                curated layer (Best long / short, Cleanest, Extended: do not chase), which brief.json lacks.
-  evaluate [out_dir] [--fetch] Score every archived brief and write out_dir/scorecard.json and out_dir/scorecard.csv.
-                               Prices: out_dir/charts/*.json when present (the screener's own candles, no extra calls);
-                               otherwise, or with --fetch, Yahoo directly (cached for the day in data/.price_cache).
+  evaluate [out_dir] [--fetch] [--bbg=FILE]
+                               Score every archived brief and write out_dir/scorecard.json, scorecard.csv and
+                               positions.csv. Prices: Bloomberg from FILE (bbg_daily.json written by bloomberg/bbg_sync.py)
+                               for every stock it has; otherwise out_dir/charts/*.json when present (the screener's own
+                               candles); otherwise, or with --fetch, Yahoo directly (cached for the day in data/.price_cache).
+                               Positions: each stock followed from its first appearance until the brief reverses it (a
+                               flip) or 20 sessions pass, with the high, low and best close in between.
 
 Measurement rules
   Entry "close" = close of the signal bar (the bar the brief was computed from). Entry "open" = next session's open,
@@ -117,9 +121,11 @@ def num(s):
 
 # ---------------- prices ----------------
 class Prices:
-    """Daily candles by screener key. Charts written by screen.py (2 years, last bar may be live) or Yahoo directly."""
+    """Daily candles by screener key: Bloomberg (a file written by bloomberg/bbg_sync.py, when given), else the charts
+    written by screen.py (2 years, last bar may be live), else Yahoo directly. Each series says which in "src"."""
 
-    def __init__(self, out_dir=None, fetch=False, fetcher=None, today=None):
+    def __init__(self, out_dir=None, fetch=False, fetcher=None, today=None, bbg=None):
+        self.bbg = load_bbg(bbg) if bbg else {}
         self.cdir = os.path.join(out_dir, "charts") if out_dir else None
         self.fetch = fetch or not (self.cdir and os.path.isdir(self.cdir))
         self.fetcher = fetcher or screen.yahoo_bars
@@ -136,6 +142,9 @@ class Prices:
     def get(self, k):
         if k in self.mem:
             return self.mem[k]
+        if k in self.bbg:
+            self.mem[k] = self.bbg[k]
+            return self.mem[k]
         b = None
         if self.cdir and not self.fetch:
             p = os.path.join(self.cdir, screen.chart_file(k))
@@ -147,6 +156,7 @@ class Prices:
             b = self._yahoo(k)
         if b is not None:
             b = self._clean(b)
+            b["src"] = "yahoo"
         self.mem[k] = b
         return b
 
@@ -188,6 +198,26 @@ class Prices:
         return out
 
 
+def load_bbg(path):
+    """bbg_daily.json (bloomberg/bbg_sync.py) -> {screener key: candles}. Bloomberg dates each bar by its own market's
+    trading day, so these series need no holiday or time-zone fixes."""
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    out = {}
+    for k, x in (raw.get("prices") or {}).items():
+        keep = [i for i, c in enumerate(x["c"]) if c is not None and x["h"][i] is not None and x["l"][i] is not None]
+        if len(keep) < 2:
+            continue
+        ds = [date.fromisoformat(x["d"][i]) for i in keep]
+        b = {"d": ds, "t": [int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp()) for d in ds],
+             "h": [x["h"][i] for i in keep], "l": [x["l"][i] for i in keep], "c": [x["c"][i] for i in keep],
+             "e": {}, "memo": {}, "src": "bbg"}
+        b["o"] = [x["o"][i] if x["o"][i] is not None else x["c"][i] for i in keep]
+        out[k] = b
+    print(f"Bloomberg prices: {len(out)} series as of {raw.get('asof')}")
+    return out
+
+
 def ema_continued(closes, n, seed=None):
     if seed is None:
         return screen.ema_series(closes, n)
@@ -209,7 +239,7 @@ def tiers_of(b):
 def signal_index(b, card, session):
     """The bar the brief was computed from: stamped t0 (archive), else the bar near the session date whose close
     matches the brief's price, else the last bar on or before the session date."""
-    if card.get("t0") is not None:
+    if card.get("t0") is not None and b.get("src") != "bbg":   # t0 is a Yahoo bar time; Bloomberg bars match by date
         return b["t"].index(card["t0"]) if card["t0"] in b["t"] else None
     mk = ("sig", session, card.get("last"))
     if mk not in b.get("memo", {}):
@@ -219,7 +249,9 @@ def signal_index(b, card, session):
 
 def _signal_index(b, card, session):
     sd = date.fromisoformat(session)
-    near = range(bisect.bisect_left(b["d"], sd - timedelta(days=4)), bisect.bisect_right(b["d"], sd + timedelta(days=1)))
+    # Bloomberg dates bars by the local trading day, so the signal bar is on or before the US session date
+    late = timedelta(days=0 if b.get("src") == "bbg" else 1)
+    near = range(bisect.bisect_left(b["d"], sd - timedelta(days=4)), bisect.bisect_right(b["d"], sd + late))
     last = card.get("last")
     if last:
         good = [i for i in near if abs(b["c"][i] / last - 1) < 0.006]
@@ -258,6 +290,7 @@ def score_card(card, side, session, prices, today, univ=None):
     k = card.get("k") or key_for(card["sym"])
     out = {"k": k, "status": "ok", "res": {}}
     b = prices.get(k)
+    out["px_src"] = (b or {}).get("src")
     if not b or len(b["c"]) < 3:
         out["status"] = "no prices"
         return out
@@ -539,6 +572,106 @@ def import_notion(path, session=None, force=False):
     return dest
 
 
+# ---------------- positions: the same signals, followed per stock until the call reverses ----------------
+POS_MAX = 20      # a position closes after this many sessions if the brief never reverses it
+WHIPSAW = 5       # a reversal within this many sessions counts as a whipsaw
+
+
+def positions(rows, prices):
+    """One position per stock and direction: opened at its first appearance in a long or short setup list, kept while
+    later briefs repeat that direction, closed when the stock appears on the other side (a flip: the flip brief's
+    signal close is the exit, and a new position opens there) or after POS_MAX sessions. The signal view is never cut
+    short by this: every appearance keeps its own fixed 1D / 1W / 20D windows."""
+    sig = {}
+    for r in rows:
+        if r["list"] in LONG_SETUPS + SHORT_SETUPS and r["status"] == "ok" and r.get("signal_day"):
+            sig.setdefault((r["k"], r["brief"]), r)   # in two lists of one brief: the first list counts
+    by_k = {}
+    for (k, _), r in sorted(sig.items(), key=lambda x: x[0][1]):
+        by_k.setdefault(k, []).append(r)
+    out = []
+    for k, rs in by_k.items():
+        b = prices.get(k)
+        if not b or len(b["c"]) < 2:
+            continue
+        last = len(b["c"]) - 1
+        cur = None
+        for r in rs:
+            i = bisect.bisect_right(b["d"], date.fromisoformat(r["signal_day"])) - 1
+            if i < 0:
+                continue
+            if cur and i - cur["i0"] >= POS_MAX:
+                out.append(position_stats(cur, b, cur["i0"] + POS_MAX, "20 sessions"))
+                cur = None
+            if cur is None:
+                cur = opened(k, r, i, b)
+            elif r["side"] == cur["side"]:
+                cur["repeats"] += 1
+                cur["lists"].add(r["list"])
+            else:
+                out.append(position_stats(cur, b, i, "flip"))
+                cur = opened(k, r, i, b)
+        if cur:
+            done = last - cur["i0"] >= POS_MAX
+            out.append(position_stats(cur, b, cur["i0"] + POS_MAX if done else last, "20 sessions" if done else None))
+    out.sort(key=lambda p: (p["status"] == "open", p["last_day"], p["entry_day"]), reverse=True)
+    return out
+
+
+def opened(k, r, i, b):
+    return {"k": k, "sym": r["sym"], "name": r.get("name"), "cur": r.get("cur"), "side": r["side"], "i0": i,
+            "open_brief": r["brief"], "list": r["list"], "lists": {r["list"]}, "repeats": 0, "src": b.get("src")}
+
+
+def position_stats(p, b, j, reason):
+    """Entry to bar j: return, highest high / lowest low traded, best close, and how much of it was given back."""
+    i0, side = p["i0"], p["side"]
+    e = b["c"][i0]
+    rnd = lambda v: None if v is None else round(v, 2)   # noqa: E731
+    pct = lambda v: None if v is None else (v / e - 1) * 100   # noqa: E731
+    span = range(i0 + 1, j + 1)
+    hi = max(b["h"][i] for i in span) if j > i0 else None
+    lo = min(b["l"][i] for i in span) if j > i0 else None
+    best = (max if side > 0 else min)(b["c"][i] for i in span) if j > i0 else None
+    ret = pct(b["c"][j])
+    return {"k": p["k"], "sym": p["sym"], "name": p["name"], "cur": p["cur"], "side": side, "list": p["list"],
+            "lists": sorted(p["lists"]), "repeats": p["repeats"], "open_brief": p["open_brief"], "src": p["src"],
+            "entry_day": b["d"][i0].isoformat(), "entry": e, "status": "closed" if reason else "open", "reason": reason,
+            "exit_day": b["d"][j].isoformat() if reason else None, "last_day": b["d"][j].isoformat(), "px": b["c"][j],
+            "held": j - i0, "ret": rnd(ret), "dir": rnd(side * ret), "hi": hi, "hi_pct": rnd(pct(hi)), "lo": lo,
+            "lo_pct": rnd(pct(lo)), "best_dir": rnd(side * pct(best)) if best is not None else None,
+            "giveback": rnd(side * pct(best) - side * ret) if best is not None else None,
+            "whipsaw": reason == "flip" and j - i0 <= WHIPSAW}
+
+
+def positions_summary(ps):
+    """Closed positions by the list they opened from (and all longs / all shorts): result, holding, flips, whipsaws."""
+    out = {}
+    groups = [(k, [p for p in ps if p["list"] == k]) for k in LONG_SETUPS + SHORT_SETUPS]
+    groups += [("all_long", [p for p in ps if p["side"] > 0]), ("all_short", [p for p in ps if p["side"] < 0])]
+    avg = lambda xs: round(sum(xs) / len(xs), 2) if xs else None   # noqa: E731
+    share = lambda n, d: round(100 * n / d) if d else None   # noqa: E731
+    for key, g in groups:
+        c = [p for p in g if p["status"] == "closed"]
+        d = [p["dir"] for p in c if p["dir"] is not None]
+        out[key] = {"open": len(g) - len(c), "closed": len(c), "mean": avg(d), "hit": share(sum(1 for x in d if x > 0), len(d)),
+                    "held": avg([p["held"] for p in c]), "giveback": avg([p["giveback"] for p in c if p["giveback"] is not None]),
+                    "flip": share(sum(1 for p in c if p["reason"] == "flip"), len(c)),
+                    "whipsaw": share(sum(1 for p in c if p["whipsaw"]), len(c))}
+    return out
+
+
+def write_positions_csv(ps, path):
+    cols = ["sym", "name", "side", "list", "lists", "repeats", "open_brief", "entry_day", "entry", "status", "reason",
+            "exit_day", "last_day", "px", "held", "ret", "dir", "hi", "hi_pct", "lo", "lo_pct", "best_dir", "giveback",
+            "whipsaw", "cur", "src"]
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for p in ps:
+            w.writerow([" / ".join(p[c]) if c == "lists" else p.get(c) for c in cols])
+
+
 # ---------------- evaluate ----------------
 def load_archive():
     out = []
@@ -649,11 +782,11 @@ def summarise(rows):
     return cube, mech
 
 
-def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices=None, members=None, quiet=False):
+def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices=None, members=None, quiet=False, bbg=None):
     """briefs / prices / members default to the archive, the screener's charts and data.json's themes; the backtest
-    (backtest_briefs.py) passes its own."""
+    (backtest_briefs.py) passes its own. bbg: a Bloomberg price file (bbg_daily.json), used first where it has the stock."""
     today = today or datetime.now(timezone.utc).date()
-    prices = prices or Prices(out_dir, fetch=fetch, fetcher=fetcher, today=today)
+    prices = prices or Prices(out_dir, fetch=fetch, fetcher=fetcher, today=today, bbg=bbg)
     briefs = load_archive() if briefs is None else briefs
     members = theme_members(prices) if members is None else members
     univ_keys = sorted({k for ks in members.values() for k in ks})
@@ -732,7 +865,12 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                 t[f"rho_tier_{name}"] = spearman([x["net_tier_5d"] for x in t["themes"]], [x[f"fwd_{name}"] for x in t["themes"]])
             themes.append(t)
     cube, mech = summarise(rows)
+    ps = positions(rows, prices)
     keep = {b["us_session"] for b in briefs[-ROWS_BRIEFS:]}
+    srcs = {}
+    for r in rows:
+        if r["list"] in LISTS and r.get("px_src"):
+            srcs[r["px_src"]] = srcs.get(r["px_src"], 0) + 1
     labels = {k: v[2] for k, v in LISTS.items()}
     labels.update({k: v[1] for k, v in PICKS.items()})
     labels.update({k: v[1] for k, v in AGGREGATES.items()})
@@ -743,14 +881,18 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                                                             "picks": bool(b.get("picks"))} for b in briefs],
            "labels": labels, "cube": cube, "mech": mech, "health": health, "themes": themes,
            "rows": [r for r in rows if r["brief"] in keep], "rows_briefs": sorted(keep),
-           "price_source": "screener charts" if not prices.fetch else "Yahoo direct",
+           "price_source": " + ".join(f"{'Bloomberg' if k == 'bbg' else 'Yahoo'} {v}" for k, v in sorted(srcs.items())) or "–",
+           "positions": ps, "pos_summary": positions_summary(ps), "pos_rules": {"max": POS_MAX, "whipsaw": WHIPSAW},
            "universe_baseline": bool(univ_keys)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "scorecard.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, separators=(",", ":"), default=str)
     write_csv(rows, os.path.join(out_dir, "scorecard.csv"))
+    write_positions_csv(ps, os.path.join(out_dir, "positions.csv"))
     done = sum(1 for r in rows if (r["res"].get("1D") or {}).get("close"))
-    print(f"evaluate: {len(briefs)} briefs, {len(rows)} setup rows, {done} with a 1D result; wrote scorecard.json / .csv")
+    print(f"evaluate: {len(briefs)} briefs, {len(rows)} setup rows, {done} with a 1D result, "
+          f"{sum(1 for p in ps if p['status'] == 'open')} open / {sum(1 for p in ps if p['status'] == 'closed')} closed positions "
+          f"(prices: {out['price_source']}); wrote scorecard.json / .csv, positions.csv")
     return out
 
 
@@ -789,6 +931,7 @@ if __name__ == "__main__":
         sess = next((a.split("=", 1)[1] for a in flags if a.startswith("--session=")), None)
         import_notion(pos[0], sess, "--force" in flags)
     elif cmd == "evaluate":
-        evaluate(pos[0] if pos else os.path.join(ROOT, "docs"), fetch="--fetch" in flags)
+        bbg = next((a.split("=", 1)[1] for a in flags if a.startswith("--bbg=")), None)
+        evaluate(pos[0] if pos else os.path.join(ROOT, "docs"), fetch="--fetch" in flags, bbg=bbg)
     else:
         print(__doc__)

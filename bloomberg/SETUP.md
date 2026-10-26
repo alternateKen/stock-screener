@@ -109,6 +109,30 @@ Claude fixes anything Bloomberg named differently, and you download the updated 
    - Runs are allowed from **25 October 2026**; the daily schedule runs on weekdays.
 2. To see what it did, double-click **`show_log.bat`**. To switch it off, double-click **`remove_schedule.bat`**.
 
+## Step 10: Bloomberg prices for the brief tracker (5 minutes, once)
+
+The daily run also fetches the open, high, low and close of every stock named in the morning briefs of the last 45 days, plus the benchmark indices (S&P 500, KOSPI, TAIEX, TOPIX, CSI 300 and so on). The brief scorecard then measures every setup with Bloomberg prices instead of Yahoo's.
+
+These are **raw Bloomberg prices**, so they go to a **separate, private** repository and never to the public site.
+
+1. On github.com press **+** (top right) → **New repository**.
+   - **Repository name:** `stock-screener-prices`
+   - Choose **Private**.
+   - Tick **Add a README file** (the sync needs a first commit to add to).
+   - Press **Create repository**.
+2. Give the sync's key access to it: **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, open **Bloomberg sync**, press **Edit**, and under **Repository access** also pick **stock-screener-prices**. Press **Update**. The key and `token.txt` stay the same.
+3. That's all on this PC. The next daily run uploads `bbg_daily.json` there. The log says `Brief tracker prices: N of M securities` and `stock-screener-prices (private): uploaded bbg_daily.json`.
+
+What it costs: the stocks in the briefs are almost all theme stocks the consensus run already asks for, so the monthly count of unique securities barely moves (about 20 indices and a handful of others). Each day it asks for about 45 days of four fields, roughly 600 securities × 32 days × 4 ≈ 80,000 hits, well inside the daily budget. The sync checks the allowance first and skips the prices rather than go past it.
+
+On the PC that scores the briefs (not this one), clone the private repository once, next to `stock-screener`:
+
+```
+git clone https://github.com/alternateKen/stock-screener-prices.git
+```
+
+The scheduled scorecard task pulls it each morning and scores with `--bbg=../stock-screener-prices/bbg_daily.json`, falling back to Yahoo for anything Bloomberg didn't return.
+
 ## Extra runs, whenever you want
 
 Double-click **`run_now.bat`**. It asks for **extra tickers**:
