@@ -16,7 +16,7 @@ on:
     paths: ["docs/**", "scripts/**", "themes/**", "data/**", "universe.txt", "leaders.txt", ".github/workflows/update.yml"]
 
 permissions:
-  contents: read
+  contents: write   # the brief tracker commits the morning brief archive (data/briefs/); pushes made with this token never re-trigger the workflow
   pages: write
   id-token: write
 
@@ -38,6 +38,22 @@ jobs:
       - name: Fetch fresh data and compute signals
         timeout-minutes: 14
         run: python scripts/screen.py docs
+      - name: Archive the morning brief and score past briefs
+        continue-on-error: true   # the tracker must never stop the site from publishing
+        timeout-minutes: 4
+        run: |
+          python scripts/track_briefs.py archive docs
+          python scripts/track_briefs.py evaluate docs
+      - name: Commit the brief archive
+        continue-on-error: true
+        run: |
+          if [ -n "$(git status --porcelain data/briefs)" ]; then
+            git config user.name "brief-tracker"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/briefs
+            git commit -m "Archive morning brief $(date -u +%F)"
+            git pull --rebase --autostash && git push
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

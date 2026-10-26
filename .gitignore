@@ -1,3 +1,8 @@
 __pycache__/
 docs/data.json
 docs/charts/
+data/.price_cache/
+docs/scorecard.json
+docs/scorecard.csv
+data/.backtest_cache/
+backtest/
