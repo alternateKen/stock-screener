@@ -3,6 +3,8 @@ import math, os, random, sys, tempfile, unittest, json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 import screen  # noqa: E402
 
+os.environ["SCREENER_STATE_URL"] = "none"   # offline: never compare with the live site's state.json
+
 
 def bars(closes, vols=None, start=1_700_000_000):
     n = len(closes)
@@ -137,6 +139,24 @@ class Signals(unittest.TestCase):
         rows = [{"_tierh": {"2026-10-01": "lead", "2026-10-02": "lag"}}, {"_tierh": {"2026-10-01": "lead", "2026-10-02": "med"}},
                 {"_tierh": {"2026-10-02": "lag"}}]   # 1 Oct: only 2 of 3 traded (below 80%), so it is left out
         self.assertEqual(screen.leader_history(rows), {"d": ["2026-10-02"], "lead": [0], "med": [1], "lag": [2]})
+
+    def test_change_log(self):
+        prev = {"A": {"t": "med", "st": "mixed", "tr": "side", "e21": -1, "sig": []},
+                "B": {"t": "lead", "st": "up", "tr": "up", "e21": 1, "sig": ["hi52"]}}
+        cur = {"A": {"t": "lead", "st": "up", "tr": "up", "e21": 1, "sig": ["brku"]},
+               "B": {"t": "lead", "st": "up", "tr": "up", "e21": 1, "sig": ["hi52"]}, "C": {"t": "lag"}}
+        ev = screen.diff_events(prev, cur, "2026-10-26T02:00+00:00")
+        self.assertEqual({e["kind"] for e in ev}, {"tier", "short", "trend", "ema21", "signal"})
+        self.assertTrue(all(e["k"] == "A" and e["d"] == 1 for e in ev))   # B unchanged, C is new: nothing to compare
+        with tempfile.TemporaryDirectory() as d:
+            stocks = {"A": {"tier": "med", "last": 9.0, "ema21": 10.0, "signals": []}}
+            now = screen.datetime(2026, 10, 26, 2, tzinfo=screen.timezone.utc)
+            self.assertEqual(screen.update_changes(d, stocks, ["A"], {"status": "Healthy"}, now), [])   # first run: no log yet
+            stocks["A"].update(tier="lead", last=11.0, signals=[{"k": "x50u", "t": "", "d": 1}])
+            log = screen.update_changes(d, stocks, ["A"], {"status": "Risk-off"}, now + screen.timedelta(minutes=30))
+            self.assertEqual({e["kind"] for e in log}, {"tier", "ema21", "signal", "health"})
+            # a day later the old entries have dropped out of the rolling 24-hour log
+            self.assertEqual(screen.update_changes(d, stocks, ["A"], {"status": "Risk-off"}, now + screen.timedelta(hours=25)), [])
 
     def test_adjustments(self):
         with tempfile.TemporaryDirectory() as d:

@@ -43,6 +43,27 @@ function overview(){
       <div class="row"><span>Bloomberg consensus</span><b>${B.street_asof?esc(B.street_asof.slice(0,16).replace('T',' ')):'–'}</b></div></div></div>
    <div class="note">Covers your theme stocks and the leaders list, with at least about US$5M traded a day for the setup lists. Tiers: Lead = 9 &gt; 21 &gt; 50 EMA, Lagging = 9 &lt; 21 &lt; 50 EMA, Mediocre = mixed.</div></section>`;
 }
+// changes between rebuilds (brief.json "changes", newest first): strengthening longs vs strengthening shorts
+const CF={since:'all',asia:false};
+const sinceMorning=()=>{const d=new Date();d.setHours(6,30,0,0);if(Date.now()<d)d.setDate(d.getDate()-1);return d};
+function changesHTML(){
+  const all=B.changes||[];
+  const ev=all.filter(e=>(CF.since==='all'||new Date(e.at)>=sinceMorning())&&(!CF.asia||(e.cur&&e.cur!=='USD')));
+  const t=e=>new Date(e.at).toLocaleString([],{weekday:'short',hour:'2-digit',minute:'2-digit'});
+  const li=e=>`<div class="lrow" style="display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:5px 0;border-top:1px solid var(--line);font-size:13px">
+    <div>${e.k?`<b><a class="stk" href="${chartUrl(e.k)}">${esc(e.sym)}</a></b> <small class="mu">${esc(e.name)} · ${esc(e.where)}</small>`:'<b>Market</b>'}</div><div class="mu" style="font-size:11px;text-align:right">${t(e)}</div>
+    <div class="${e.d>0?'up':'dn'}" style="font-size:12px">${esc(e.t)}</div><div style="font-size:12px;text-align:right">${e.day==null?'':`<span class="${cls(e.day)}">${pc(e.day)}</span>`}${e.tier?` <span class="${tierCls(e.tier)}">${TIERW[e.tier]}</span>`:''}</div></div>`;
+  const col=(d,title)=>{const rs=ev.filter(e=>e.d===d);return `<div class="panel"><h3 class="${d>0?'up':'dn'}">${title} · ${rs.length}</h3>${rs.slice(0,80).map(li).join('')||'<div class="empty">None in this window.</div>'}${rs.length>80?`<div class="note">and ${rs.length-80} more</div>`:''}</div>`};
+  const chip=(k,v,l)=>`<span class="fchip ${CF[k]===v?'on':''}" data-cf="${k}" data-v="${v}">${l}</span>`;
+  return `<section id="changes"><h2>Changes since earlier rebuilds (last 24 hours)</h2>
+   <div class="filters" style="margin-bottom:8px">${chip('since','all','Last 24 hours')}${chip('since','am','Since 06:30')} ${chip('asia',false,'All markets')}${chip('asia',true,'Asian / non-US only')}</div>
+   <div class="grid2">${col(1,'Strengthening (long side)')}${col(-1,'Weakening (short side)')}</div>
+   <div class="note">The site rebuilds every 30 minutes during Asian and US market hours and records what changed since the previous rebuild: tier moves, short-term trend turns, trend changes, crosses of the 21-day EMA, new breakouts / breakdowns, 52-week highs / lows and 50 / 200-day crosses, and the leaders' health. Intraday changes use the day's bar so far and can reverse by the close. Times are in your browser's time zone.</div></section>`;
+}
+function wireChanges(){
+  document.querySelectorAll('[data-cf]').forEach(c=>c.onclick=()=>{const k=c.dataset.cf;CF[k]=k==='asia'?c.dataset.v==='true':c.dataset.v;
+    document.getElementById('changes').outerHTML=changesHTML();wireChanges()});
+}
 function themesHTML(){
   const rows=B.themes.map(t=>{const n=t.n||1;return `<tr><td class="nm">${esc(t.theme)}<small>${t.n} stocks</small></td><td class="${cls(t.day)}">${pc(t.day,2)}</td><td class="${cls(t.w1)} hide-sm">${pc(t.w1)}</td><td class="${cls(t.m1)}">${pc(t.m1)}</td>
     <td>${Math.round(t.above50/n*100)}%</td><td class="up">${t.tiers.lead} <small class="mu">(${t.tiers.lead-t.tiers_5d.lead>=0?'+':''}${t.tiers.lead-t.tiers_5d.lead})</small></td>
@@ -59,10 +80,12 @@ load(()=>{
       +table('short-breakdowns','Short: breakdowns and new lows',B.short.breakdowns,'Breakdowns, 52-week lows, lost 50 / 200-day and death crosses, not in the Lead tier. Weakest first.')
       +table('short-bounces','Short: Lagging-tier bounces into the 9 / 21 EMA',B.short.bounces)
       +table('short-near','Short: bearish patterns within 3% of breaking down',B.short.near_breakdown)
+      +changesHTML()
       +table('improving',`Improving since the previous session (${B.counts.improving})`,B.improving,'Tier upgrades (Lagging to Mediocre, Mediocre to Lead) and short-term trends turning up. Top 15 by relative strength.')
       +table('deteriorating',`Deteriorating since the previous session (${B.counts.deteriorating})`,B.deteriorating,'Tier downgrades and short-term trends turning down. Weakest 15.')
       +themesHTML()+`<section>${errorsBlock()}</section>`;
-    document.getElementById('nav').innerHTML=[['overview','Overview'],['long-breakouts','Long'],['short-breakdowns','Short'],['improving','Improving'],['deteriorating','Deteriorating'],['themes','Themes'],['leaders.html','Leaders']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
+    wireChanges();
+    document.getElementById('nav').innerHTML=[['overview','Overview'],['changes','Changes'],['long-breakouts','Long'],['short-breakdowns','Short'],['improving','Improving'],['deteriorating','Deteriorating'],['themes','Themes'],['leaders.html','Leaders']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
   }).catch(e=>{document.getElementById('main').innerHTML=`<section><h2>Brief not available</h2><p>${esc(e.message)}</p></section>`});
 });
 </script>

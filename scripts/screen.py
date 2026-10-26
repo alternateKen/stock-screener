@@ -4,7 +4,7 @@ indicators and signals, and write docs/data.json for the pages. Standard library
 Usage: python scripts/screen.py [output folder, default docs]"""
 import json, os, re, sys, time, urllib.request, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
@@ -922,8 +922,11 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
     path = os.path.join(out_dir, "data.json")
     with open(path, "w") as f:
         json.dump(data, f, separators=(",", ":"), default=lambda x: None)
+    brief = build_brief(data, stocks)
+    log = update_changes(out_dir, stocks, brief.pop("_keys"), brief["leaders"]["health"])
+    brief["changes"] = brief_changes(log, stocks, data)
     with open(os.path.join(out_dir, "brief.json"), "w") as f:   # the morning brief's facts (brief.html, Claude)
-        json.dump(build_brief(data, stocks), f, separators=(",", ":"), default=lambda x: None)
+        json.dump(brief, f, separators=(",", ":"), default=lambda x: None)
     cdir = os.path.join(out_dir, "charts")
     os.makedirs(cdir, exist_ok=True)
     for f in os.listdir(cdir):   # drop charts of stocks no longer on any list
@@ -1099,7 +1102,116 @@ def build_brief(data, stocks):
         "improving": top(better, "rs3"), "deteriorating": top(worse, "rs3", False),
         "counts": {"improving": len(better), "deteriorating": len(worse)},
         "data_flags": [{"k": k, "why": s["dq"]} for k, s in stocks.items() if s.get("dq")],
+        "_keys": [r["k"] for r in rows if r["liquid"]],   # the stocks the change log follows (taken out before writing)
     }
+
+
+def brief_changes(log, stocks, data):
+    """The change log with each stock's symbol, name, theme and market added, for brief.html and the Claude briefs."""
+    where = {}
+    for t in data["themes"]:
+        for g in t["groups"]:
+            for it in g["items"]:
+                where.setdefault(it["k"], (it["sym"], it["label"], f"{t['title']} / {g['name']}"))
+    for g in data["leaders"]["groups"]:
+        for it in g["items"]:
+            where.setdefault(it["k"], (it["sym"], it["label"], f"Leaders / {g['name']}"))
+    out = []
+    for e in log:
+        sym, name, w = where.get(e["k"], (e["k"], "", ""))
+        s = stocks.get(e["k"]) or {}
+        out.append({**e, "sym": sym, "name": name, "where": w, "cur": s.get("cur"), "last": s.get("last"),
+                    "day": None if s.get("pct") is None else round(s["pct"], 1), "tier": s.get("tier")})
+    return out
+
+
+# ---------------- changes between rebuilds (state.json -> brief.json "changes") ----------------
+CHANGE_HOURS = 24              # how long a change stays in the log
+SIG_EVENTS = {"brku", "brkd", "hi52", "lo52", "x50u", "x50d", "x200u", "x200d", "golden", "death"}
+TIER_RANK = {"lag": 0, "med": 1, "lead": 2}
+
+
+def snapshot(stocks, keys):
+    """The per-stock state the next rebuild compares with: tier, short-term trend, trend direction, which side of the
+    21-day EMA the price is on, and the event signals."""
+    out = {}
+    for k in keys:
+        s = stocks.get(k)
+        if not s:
+            continue
+        out[k] = {"t": s.get("tier"), "st": (s.get("sterm") or {}).get("dir"), "tr": (s.get("trend") or {}).get("dir"),
+                  "e21": None if not s.get("ema21") else (1 if s["last"] > s["ema21"] else -1),
+                  "sig": sorted({x["k"] for x in s.get("signals", []) if x["k"] in SIG_EVENTS})}
+    return out
+
+
+def diff_events(prev, cur, now_iso):
+    """What changed for each stock between two snapshots -> [{"at", "k", "kind", "d" (+1 long / -1 short), "t"}]."""
+    ev = []
+    word = {"lead": "Lead", "med": "Mediocre", "lag": "Lagging"}
+    names = {"brku": "Breakout", "brkd": "Breakdown", "hi52": "New 52-week high", "lo52": "New 52-week low",
+             "x50u": "Crossed above the 50-day", "x50d": "Crossed below the 50-day", "x200u": "Crossed above the 200-day",
+             "x200d": "Crossed below the 200-day", "golden": "Golden cross", "death": "Death cross"}
+    for k, c in cur.items():
+        p = prev.get(k)
+        if not p:
+            continue
+        add = lambda kind, d, t: ev.append({"at": now_iso, "k": k, "kind": kind, "d": d, "t": t})   # noqa: E731
+        if p.get("t") and c.get("t") and p["t"] != c["t"]:
+            up = TIER_RANK[c["t"]] > TIER_RANK[p["t"]]
+            add("tier", 1 if up else -1, f"Tier {word[p['t']]} -> {word[c['t']]}")
+        if p.get("st") and c.get("st") and p["st"] != c["st"] and c["st"] != "mixed":
+            add("short", 1 if c["st"] == "up" else -1, f"Short-term trend turned {c['st']}")
+        if p.get("tr") and c.get("tr") and p["tr"] != c["tr"]:
+            rank = {"down": 0, "side": 1, "up": 2}
+            add("trend", 1 if rank[c["tr"]] > rank[p["tr"]] else -1, f"Trend {p['tr']} -> {c['tr']}")
+        if p.get("e21") and c.get("e21") and p["e21"] != c["e21"]:
+            add("ema21", c["e21"], f"Crossed {'above' if c['e21'] > 0 else 'below'} the 21-day EMA")
+        for x in sorted(set(c.get("sig", [])) - set(p.get("sig", []))):
+            add("signal", 1 if x in ("brku", "hi52", "x50u", "x200u", "golden") else -1, names[x])
+    return ev
+
+
+def load_previous_state(out_dir):
+    """The previous rebuild's state.json: the local copy if there is one, else the published site's (in GitHub Actions,
+    https://<owner>.github.io/<repo>/state.json, or SCREENER_STATE_URL). None when neither is available."""
+    p = os.path.join(out_dir, "state.json")
+    try:
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                return json.load(f)
+        url = os.environ.get("SCREENER_STATE_URL")
+        if url == "none":   # the tests: never the live site's state
+            return None
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+        if not url and "/" in repo:
+            owner, name = repo.split("/", 1)
+            url = f"https://{owner.lower()}.github.io/{name}/state.json"
+        if url:
+            return json.loads(get(url + f"?t={int(time.time())}", tries=2))
+    except Exception as e:  # noqa: BLE001   no previous state: this rebuild just starts the log
+        print(f"previous state unavailable ({e}); the change log starts from this rebuild")
+    return None
+
+
+def update_changes(out_dir, stocks, keys, health, now=None):
+    """Compare with the previous rebuild, append what changed to the rolling log, write state.json. Returns the log
+    (newest first) for brief.json."""
+    now = now or datetime.now(timezone.utc)
+    now_iso = now.isoformat(timespec="minutes")
+    prev = load_previous_state(out_dir) or {}
+    cur = snapshot(stocks, keys)
+    log = [e for e in prev.get("log", []) if datetime.fromisoformat(e["at"]) > now - timedelta(hours=CHANGE_HOURS)]
+    if prev.get("stocks"):
+        new = diff_events(prev["stocks"], cur, now_iso)
+        h0, h1 = (prev.get("health") or {}).get("status"), (health or {}).get("status")
+        if h0 and h1 and h0 != h1:
+            new.append({"at": now_iso, "k": "", "kind": "health", "d": 1 if h1 in ("Healthy", "Improving") else -1,
+                        "t": f"Leaders health {h0} -> {h1}"})
+        log = new + log
+    with open(os.path.join(out_dir, "state.json"), "w") as f:
+        json.dump({"generated": now_iso, "stocks": cur, "health": health, "log": log}, f, separators=(",", ":"))
+    return log
 
 
 def leader_history(rows):

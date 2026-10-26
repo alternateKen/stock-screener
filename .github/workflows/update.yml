@@ -6,12 +6,14 @@ on:
     # Cron times are UTC (no daylight saving), written wide enough to cover both summer and winter time in New York:
     #   10:15 and 11:15 UTC = pre-market (6:15am New York summer / winter), after every Asian market has closed
     #   every 30 minutes from 13:05 to 21:35 UTC covers US market hours
+    #   every 30 minutes from 00:20 to 08:50 UTC covers Asian market hours (Tokyo, Seoul, Taipei, Hong Kong, Shanghai, ASEAN)
     - cron: "15 10,11 * * 1-5"
     - cron: "5,35 13-21 * * 1-5"
+    - cron: "20,50 0-8 * * 1-5"
   workflow_dispatch: {}   # "Run workflow" button = refresh now
   push:
     branches: [main]
-    paths: ["docs/**", "scripts/**", "themes/**", "data/**", "universe.txt", ".github/workflows/update.yml"]
+    paths: ["docs/**", "scripts/**", "themes/**", "data/**", "universe.txt", "leaders.txt", ".github/workflows/update.yml"]
 
 permissions:
   contents: read
