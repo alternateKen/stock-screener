@@ -81,8 +81,8 @@ load(()=>{
       +table('short-bounces','Short: Lagging-tier bounces into the 9 / 21 EMA',B.short.bounces)
       +table('short-near','Short: bearish patterns within 3% of breaking down',B.short.near_breakdown)
       +changesHTML()
-      +table('improving',`Improving since the previous session (${B.counts.improving})`,B.improving,'Tier upgrades (Lagging to Mediocre, Mediocre to Lead) and short-term trends turning up. Top 15 by relative strength.')
-      +table('deteriorating',`Deteriorating since the previous session (${B.counts.deteriorating})`,B.deteriorating,'Tier downgrades and short-term trends turning down. Weakest 15.')
+      +table('improving',`Improving since the previous session (${B.counts.improving})`,B.improving,'Tier upgrades (Lagging to Mediocre, Mediocre to Lead) and short-term trends turning up, vs the previous session close (for Asian stocks during their session: since the open). Strongest relative strength first, up to 60.')
+      +table('deteriorating',`Deteriorating since the previous session (${B.counts.deteriorating})`,B.deteriorating,'Tier downgrades and short-term trends turning down, vs the previous session close. Weakest first, up to 60.')
       +themesHTML()+`<section>${errorsBlock()}</section>`;
     wireChanges();
     document.getElementById('nav').innerHTML=[['overview','Overview'],['changes','Changes'],['long-breakouts','Long'],['short-breakdowns','Short'],['improving','Improving'],['deteriorating','Deteriorating'],['themes','Themes'],['leaders.html','Leaders']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');

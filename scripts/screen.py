@@ -957,6 +957,7 @@ def build(out_dir, fetch=yahoo_bars, fetch_news=news, load_universe=True, fetch_
 
 # ---------------- daily brief (brief.json + brief.html; read by the morning Claude brief) ----------------
 BRIEF_TOP = 15                 # names per setup list
+BRIEF_TOP_CHANGES = 60         # names in the improving / deteriorating lists (room for the Asian names next to the US ones)
 BRIEF_MIN_USD = 5e6            # setups need at least this much traded a day (20-day average), so thin names stay out
 FX_USD = {"USD": 1, "KRW": 0.00072, "JPY": 0.0066, "TWD": 0.031, "HKD": 0.128, "CNY": 0.14, "MYR": 0.22, "SGD": 0.77,
           "THB": 0.029, "AUD": 0.65, "EUR": 1.08, "GBP": 1.27, "GBp": 0.0127, "SEK": 0.095, "CAD": 0.73, "INR": 0.012,
@@ -1014,9 +1015,9 @@ def build_brief(data, stocks):
     def sigs(s, keys):
         return [x for x in s.get("signals", []) if x["k"] in keys]
 
-    def top(items, key, reverse=True):
+    def top(items, key, reverse=True, n=BRIEF_TOP):
         items = [x for x in items if x is not None]
-        return sorted(items, key=lambda c: (c[key] is None, -(c[key] or 0) if reverse else (c[key] or 0)))[:BRIEF_TOP]
+        return sorted(items, key=lambda c: (c[key] is None, -(c[key] or 0) if reverse else (c[key] or 0)))[:n]
 
     def vs21(s):
         return (s["last"] / s["ema21"] - 1) * 100 if s.get("ema21") else None
@@ -1099,7 +1100,7 @@ def build_brief(data, stocks):
         "long": {"breakouts": top(long_brk, "rs3"), "pullbacks": top(long_pb, "rs3"), "near_breakout": nearest(long_pat)},
         "short": {"breakdowns": top(short_brk, "rs3", False), "bounces": top(short_bn, "rs3", False),
                   "near_breakdown": nearest(short_pat)},
-        "improving": top(better, "rs3"), "deteriorating": top(worse, "rs3", False),
+        "improving": top(better, "rs3", n=BRIEF_TOP_CHANGES), "deteriorating": top(worse, "rs3", False, n=BRIEF_TOP_CHANGES),
         "counts": {"improving": len(better), "deteriorating": len(worse)},
         "data_flags": [{"k": k, "why": s["dq"]} for k, s in stocks.items() if s.get("dq")],
         "_keys": [r["k"] for r in rows if r["liquid"]],   # the stocks the change log follows (taken out before writing)
