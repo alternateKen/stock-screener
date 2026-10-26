@@ -17,6 +17,20 @@ td.cell .blk{display:block}
 td.why{white-space:normal;text-align:left;font-size:12px;min-width:180px}
 tr.grp td{background:var(--bg);font-size:11px;color:var(--mute);text-transform:none}
 .pend{color:var(--mute);font-size:11px}
+table.trk td.hz{text-align:right;line-height:1.3;white-space:nowrap;vertical-align:top}
+table.trk td.hz b{display:block;font-size:15px;font-weight:600}
+table.trk .hl{display:block;font-size:11px;color:var(--mute)}
+table.trk .hl i{font-style:normal;font-weight:600;color:var(--ink)}
+table.trk .hl em{font-style:normal}
+table.trk td.nm{vertical-align:top;min-width:200px}
+table.trk td.nm small{display:block;color:var(--mute);font-size:11px;white-space:normal}
+table.trk td.nm small.why{max-width:340px}
+table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
+.tag{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid currentColor;vertical-align:1px}
+.tag.pick{color:var(--acc)}
+#q{padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12px;min-width:170px}
+details.stats{margin:14px 0}
+details.stats>summary{cursor:pointer;font-weight:600;padding:10px 20px;color:var(--acc)}
 </style>
 </head>
 <body>
@@ -64,7 +78,7 @@ function summaryHTML(){
   return `<section id="summary"><h2>Hit rate and average result by setup list</h2>
    <div class="scroll"><table><tr><th style="text-align:left">List</th>${S.horizons.map(h=>`<th>${h}</th>`).join('')}</tr>${body}</table></div>
    <div class="note">"Right" means the measure below is above zero: a long went up, a short went down${F.measure!=='dir'?`, after taking off the ${F.measure==='x_spx'?'S&amp;P 500':F.measure==='x_loc'?'home-market index':F.measure==='x_univ'?'equal-weight basket of all theme stocks':''}`:''}.
-   Entry: ${F.entry==='close'?'close of the bar the brief was computed from':'next session\'s open, the first price you could trade after reading the brief'}. 1W = 5 sessions, 20D = 20 sessions, 1M = same day next month, in each stock's own market sessions. Green at 55%+ right, red at 45% or less. Small samples mislead: wait for n of 30+ before changing a rule.</div></section>`;
+   Entry: ${F.entry==='close'?'close of the bar the brief was computed from':'next session\'s open, the first price you could trade after reading the brief'}. 1W = 5 sessions, 20D = 20 sessions, in each stock's own market sessions. Green at 55%+ right, red at 45% or less. Small samples mislead: wait for n of 30+ before changing a rule.</div></section>`;
 }
 function mechanicsHTML(){
   const rows=rowsF(),h=F.h,lists=Object.keys(S.labels);
@@ -101,20 +115,59 @@ function themesHTML(){
    <h3>Brief ${esc(t.brief)}: each theme's equal-weight return afterwards</h3><div class="scroll"><table><tr><th style="text-align:left">Theme (as ranked that day)</th>${S.horizons.map(h=>`<th>${h}</th>`).join('')}</tr>${rows}</table></div>
    <div class="note">+1 means the brief's theme ranking was exactly the order of what came next; 0 means no relationship. Momentum calls are working when this sits persistently above about +0.2.</div></section>`;
 }
-const DS={k:null,dir:1};
-function detailHTML(){
-  let rows=rowsF().filter(r=>F.list==='all'||r.list===F.list);
-  const val=(r,h)=>{const x=(r.res||{})[h];return x&&!x.pending?(x[F.entry]||{})[F.measure]:null};
-  if(DS.k)rows=rows.slice().sort((a,b)=>{const x=DS.k==='sym'?a.sym:val(a,DS.k),y=DS.k==='sym'?b.sym:val(b,DS.k);if(x==null)return 1;if(y==null)return -1;return (typeof x==='string'?x.localeCompare(y):x-y)*DS.dir});
-  const lists=Object.keys(S.labels).filter(l=>S.rows.some(r=>r.list===l));
-  const chip=(v,l)=>`<span class="fchip ${F.list===v?'on':''}" data-f="list" data-v="${v}">${esc(l)}</span>`;
-  const body=rows.slice(0,600).map(r=>`<tr><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span><small>${esc(r.name||'')} · ${esc(r.label)} · brief ${esc(r.brief)}</small></td>
-    <td class="why">${esc(r.why||'')}${r.flag?`<br><span class="warn">⚠ ${esc(r.flag)}</span>`:''}${r.status!=='ok'?`<br><span class="warn">${esc(r.status)}</span>`:''}</td>
-    <td class="hide-sm">${r.entry_close==null?'–':fmt(r.entry_close,2)}<small class="mu" style="display:block">${esc(r.signal_day||'')}</small></td>
-    ${S.horizons.map(h=>{const x=(r.res||{})[h];if(!x)return '<td>–</td>';if(x.pending)return `<td class="pend">due ${esc(x.due)}</td>`;const v=(x[F.entry]||{})[F.measure];return `<td class="${cls(v)}">${fmtv(v,F.measure)}</td>`}).join('')}</tr>`).join('');
-  return `<section id="detail"><h2>Every setup</h2><div class="filters" style="margin-bottom:8px">${chip('all','All lists')}${lists.map(l=>chip(l,S.labels[l])).join('')}</div>
-   <div class="scroll"><table><tr><th style="text-align:left" data-sort="sym">Stock</th><th style="text-align:left">Setup</th><th class="hide-sm">Signal close</th>${S.horizons.map(h=>`<th data-sort="${h}" class="${DS.k===h?'on':''}">${h}</th>`).join('')}</tr>${body}</table></div>
-   <div class="note">${rows.length>600?`Showing 600 of ${rows.length}. `:''}Row detail covers the latest ${S.rows_briefs.length} briefs; the summary above covers all ${S.briefs.length}. Click a column to sort. <a href="scorecard.csv" style="color:var(--acc)">Download every result as CSV</a> for Excel.</div></section>`;
+// ---- the main view: one brief, every setup, return plus high / low in each window ----
+const T={brief:null,side:'all',q:''};
+const MAIN=[['breakouts','pullbacks','near_breakout'],['breakdowns','bounces','near_breakdown'],['improving'],['deteriorating'],['leaders_lead','leaders_lag']].flat();
+const PICK_TAG={pick_best_long:'Best long',pick_best_short:'Best short',pick_clean_long:'Cleanest',pick_clean_short:'Cleanest',pick_extended:'Extended: do not chase'};
+const dp=v=>v==null?2:Math.abs(v)>=1000?0:Math.abs(v)>=100?1:2;
+const px=v=>v==null?'–':fmt(v,dp(v));
+function hzCell(r,h){
+  const x=(r.res||{})[h];
+  if(r.status!=='ok')return `<td class="hz pend">${esc(r.status)}</td>`;
+  if(!x)return '<td class="hz">–</td>';
+  if(x.pending)return `<td class="hz pend">due ${esc(x.due)}</td>`;
+  const c=x.close||{},good=v=>v==null?'':(v*r.side>0?'up':v*r.side<0?'dn':'');
+  return `<td class="hz"><b class="${good(c.ret)}">${pc(c.ret)}</b>
+    <span class="hl"><i>H</i> ${px(x.hi)} <em class="${good(x.hi_pct)}">${pc(x.hi_pct)}</em></span>
+    <span class="hl"><i>L</i> ${px(x.lo)} <em class="${good(x.lo_pct)}">${pc(x.lo_pct)}</em></span></td>`;
+}
+function glance(rows){
+  const side=sd=>{const rs=rows.filter(r=>r.list===(sd>0?'all_long':'all_short'));
+    return S.horizons.map(h=>{const v=rs.map(r=>((r.res[h]||{}).close||{}).dir).filter(x=>x!=null),p=rs.filter(r=>(r.res[h]||{}).pending);
+      if(!v.length)return `<div class="row"><span>${h}</span><b class="mu">${p.length?`${p.length} due ${esc(p.map(r=>r.res[h].due).sort()[0])}`:'–'}</b></div>`;
+      const m=v.reduce((a,b)=>a+b,0)/v.length,hit=Math.round(100*v.filter(x=>x>0).length/v.length);
+      return `<div class="row"><span>${h}</span><b><span class="${cls(m)}">${pc(m)}</span> · ${hit}% right <small class="mu">(${v.length}${p.length?`, ${p.length} to come`:''})</small></b></div>`}).join('')};
+  const b=S.briefs.find(x=>x.session===T.brief)||{};
+  return `<div class="cards">
+    <div class="card"><div class="nm">Long setups: average move</div>${side(1)}</div>
+    <div class="card"><div class="nm">Short setups: average move <small class="mu">(a fall counts as a gain)</small></div>${side(-1)}</div>
+    <div class="card"><div class="nm">Leaders' health call that morning</div><div class="big ${b.status==='Healthy'?'up':b.status==='Risk-off'?'dn':''}" style="font-size:18px">${esc(b.status||'–')}</div>
+      <div class="row"><span>US session</span><b>${esc(T.brief)}</b></div><div class="row"><span>Scored</span><b>${esc(S.generated.slice(0,16).replace('T',' '))} UTC</b></div></div></div>`;
+}
+function trackerHTML(){
+  const briefs=S.rows_briefs.slice().sort().reverse();
+  if(!T.brief||!briefs.includes(T.brief))T.brief=briefs[0];
+  const all=S.rows.filter(r=>r.brief===T.brief);
+  const picks={};all.filter(r=>r.list.startsWith('pick_')).forEach(r=>(picks[r.sym]=picks[r.sym]||[]).push(PICK_TAG[r.list]));
+  const q=T.q.trim().toUpperCase();
+  const keep=r=>(T.side==='all'||(T.side==='long')===(r.side>0))&&(!q||r.sym.toUpperCase().includes(q)||(r.name||'').toUpperCase().includes(q));
+  const head=`<tr><th style="text-align:left">Stock</th><th>Entry<small>signal close</small></th>${S.horizons.map(h=>`<th>${h}<small>close · high · low</small></th>`).join('')}</tr>`;
+  const body=MAIN.map(l=>{
+    const rs=all.filter(r=>r.list===l&&keep(r));if(!rs.length)return '';
+    return `<tr class="grp"><td colspan="${S.horizons.length+2}">${esc(S.labels[l]||l)} <span class="mu">· ${rs.length}</span></td></tr>`+rs.map(r=>
+      `<tr><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag pick">${esc(t)}</span>`).join('')}
+        <small>${esc(r.name||'')}</small><small class="why">${esc(r.why||'')}</small>${r.flag?`<small class="warn">⚠ ${esc(r.flag)}</small>`:''}</td>
+        <td class="hz"><b>${px(r.entry_close)}</b><span class="hl">${esc(r.cur||'')} · ${esc(r.signal_day||'')}</span></td>${S.horizons.map(h=>hzCell(r,h)).join('')}</tr>`).join('')}).join('');
+  const chip=(k,v,l)=>`<span class="fchip ${T[k]===v?'on':''}" data-t="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
+  return `<section id="tracker"><h2>Setups from the brief of ${esc(T.brief)}</h2>
+   <div class="filters" style="margin-bottom:10px"><div class="grp"><span class="lbl">Brief</span>${briefs.map(b=>chip('brief',b,b)).join('')}</div>
+     <div class="grp"><span class="lbl">Show</span>${chip('side','all','All')}${chip('side','long','Longs')}${chip('side','short','Shorts')}</div>
+     <input id="q" type="search" placeholder="Find a ticker or name" value="${esc(T.q)}"></div>
+   ${glance(all)}
+   <div class="scroll" style="margin-top:12px"><table class="trk">${head}${body||`<tr><td colspan="${S.horizons.length+2}" class="mu">No setups match.</td></tr>`}</table></div>
+   <div class="note">Windows are counted in the stock's own trading sessions after the brief's signal bar: 1D = next session, 1W = 5 sessions, 20D = 20 sessions.
+   The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.
+   Green means the move was in the trade's favour (up for a long, down for a short). <a href="scorecard.csv" style="color:var(--acc)">Download every result as CSV</a> for Excel.</div></section>`;
 }
 function filtersHTML(){
   const chip=(k,v,l)=>`<span class="fchip ${F[k]===v?'on':''}" data-f="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
@@ -136,13 +189,16 @@ function overviewHTML(){
    <div class="card"><div class="nm">Prices</div><div class="big" style="font-size:16px">${esc(S.price_source)}</div><div class="row"><span>Scored</span><b>${esc(S.generated.replace('T',' '))}</b></div><div class="row"><span>All-stocks baseline</span><b>${S.universe_baseline?'yes':'no'}</b></div></div></div></section>`;
 }
 function render(){
-  document.getElementById('main').innerHTML=overviewHTML()+filtersHTML()+summaryHTML()+mechanicsHTML()+healthHTML()+themesHTML()+detailHTML();
+  const open=document.getElementById('stats')?.open;
+  document.getElementById('main').innerHTML=trackerHTML()+`<details id="stats" class="stats"${open?' open':''}><summary>Statistics across all briefs: hit rates, mechanics, health call, themes</summary>`
+    +overviewHTML()+filtersHTML()+summaryHTML()+mechanicsHTML()+healthHTML()+themesHTML()+'</details>';
   document.querySelectorAll('[data-f]').forEach(c=>c.onclick=()=>{F[c.dataset.f]=c.dataset.v;render()});
-  document.querySelectorAll('th[data-sort]').forEach(t=>t.onclick=()=>{const k=t.dataset.sort;DS.dir=DS.k===k?-DS.dir:-1;DS.k=k;render()});
+  document.querySelectorAll('[data-t]').forEach(c=>c.onclick=()=>{T[c.dataset.t]=c.dataset.v;render()});
+  const q=document.getElementById('q');q.oninput=()=>{T.q=q.value;const p=q.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)};
 }
 fetch('scorecard.json?'+Date.now()).then(r=>{if(!r.ok)throw new Error('scorecard.json not built yet: the tracker runs after each rebuild');return r.json()}).then(s=>{
   S=s;document.getElementById('stamp').textContent='Scored '+new Date(s.generated).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('nav').innerHTML=[['summary','Summary'],['mechanics','Mechanics'],['health','Health'],['themes','Themes'],['detail','Every setup'],['brief.html','Brief']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
+  document.getElementById('nav').innerHTML=[['tracker','Setups'],['stats','Statistics'],['brief.html','Brief']].map(([i,l])=>`<a href="${i.includes('.')?i:'#'+i}">${l}</a>`).join('');
   render();
 }).catch(e=>{document.getElementById('stamp').textContent='';document.getElementById('main').innerHTML=`<section><h2>Scorecard not available</h2><p>${esc(e.message)}</p></section>`});
 </script>

@@ -18,8 +18,9 @@ Commands
 Measurement rules
   Entry "close" = close of the signal bar (the bar the brief was computed from). Entry "open" = next session's open,
   i.e. what you could actually trade after reading the brief.
-  Horizons: 1D, 1W (5 sessions), 20D (20 sessions) after the signal bar, in the stock's own market sessions, and 1M (the
-  last session on or before the same calendar day one month later). Shorts are scored with the sign flipped.
+  Horizons: 1D, 1W (5 sessions) and 20D (20 sessions) after the signal bar, in the stock's own market sessions (no 1M:
+  it lands one to three sessions after 20D). Shorts are scored with the sign flipped.
+  Peak / trough: the highest high and lowest low traded in each window, as prices and as % from the signal close.
   Excess returns: vs the S&P 500, vs the stock's home index, and vs an equal-weight basket of all theme stocks
   (the "do nothing special" baseline), all over the same dates.
 """
@@ -32,7 +33,7 @@ import screen  # noqa: E402
 ROOT = screen.ROOT
 ARCHIVE = os.path.join(ROOT, "data", "briefs")
 CACHE = os.path.join(ROOT, "data", ".price_cache")
-HORIZONS = (("1D", 1), ("1W", 5), ("20D", 20), ("1M", "M"))
+HORIZONS = (("1D", 1), ("1W", 5), ("20D", 20))
 ENTRIES = ("close", "open")
 US_CLOSE_UTC_HOUR = 20      # 16:00 New York = 20:00 UTC (summer) / 21:00 UTC (winter); brief["intraday"] covers the gap
 
@@ -98,6 +99,14 @@ def add_month(d):
             continue
 
 
+def add_weekdays(d, n):
+    """The date n weekdays after d (holidays are not known, so a result can land a day or two later)."""
+    while n > 0:
+        d += timedelta(days=1)
+        n -= d.weekday() < 5
+    return d
+
+
 def num(s):
     """'37,350 KRW' -> 37350.0; '+9.4%' -> 9.4; '+100.5 pts' -> 100.5; '2.15e+05' -> 215000.0; '–' -> None"""
     if s is None:
@@ -161,7 +170,7 @@ class Prices:
             return None
         raw = max(got, key=lambda r: (r.get("live_bad") is None, r["t"][-1]))
         b = {"t": [t - t % 86400 for t in raw["t"]], "o": raw["o"], "h": raw["h"], "l": raw["l"],
-             "c": raw["c"], "partial": bool(raw.get("intraday"))}
+             "c": raw["c"], "v": raw.get("v"), "partial": bool(raw.get("intraday"))}
         with open(p, "w", encoding="utf-8") as f:
             json.dump(b, f)
         return b
@@ -169,7 +178,10 @@ class Prices:
     @staticmethod
     def _clean(b):
         n = len(b["c"]) - (1 if b.get("partial") else 0)   # a live (unfinished) bar never counts as a result
-        out = {x: list(b[x][:n]) for x in ("t", "o", "h", "l", "c")}
+        # Yahoo fills some market holidays with a placeholder bar (no volume, one price): not a session
+        v = b.get("v")
+        keep = [i for i in range(n) if not (v and not v[i] and b["h"][i] == b["l"][i])]
+        out = {x: [b[x][i] for i in keep] for x in ("t", "o", "h", "l", "c")}
         out["d"] = [day_of(t) for t in out["t"]]
         out["e"] = b.get("e") or {}
         out["memo"] = {}
@@ -268,7 +280,7 @@ def score_card(card, side, session, prices, today, univ=None):
     for name, h in HORIZONS:
         j, due = horizon_index(b, i0, h, today)
         if j is None:
-            out["res"][name] = {"pending": True, "due": (due or b["d"][i0] + timedelta(days=round((h if h != "M" else 21) * 7 / 5) + 1)).isoformat()}
+            out["res"][name] = {"pending": True, "due": (due or add_weekdays(b["d"][i0], h)).isoformat()}
             continue
         r = {}
         for ent in ENTRIES:
@@ -293,7 +305,8 @@ def score_card(card, side, session, prices, today, univ=None):
             r[ent] = x
         hi, lo = max(b["h"][i0 + 1:j + 1]), min(b["l"][i0 + 1:j + 1])
         mfe, mae = ((hi / c0 - 1) * 100, (lo / c0 - 1) * 100) if side > 0 else ((1 - lo / c0) * 100, (1 - hi / c0) * 100)
-        r.update(mfe=round(mfe, 2), mae=round(mae, 2), day=b["d"][j].isoformat())
+        r.update(mfe=round(mfe, 2), mae=round(mae, 2), day=b["d"][j].isoformat(), px=b["c"][j],
+                 hi=hi, lo=lo, hi_pct=round((hi / c0 - 1) * 100, 2), lo_pct=round((lo / c0 - 1) * 100, 2))
         if level:
             closes = b["c"][i0 + 1:j + 1]
             r["triggered"] = any((c >= level * 1.01) if side > 0 else (c <= level * 0.99) for c in closes)
@@ -748,7 +761,8 @@ def write_csv(rows, path):
     for name, _ in HORIZONS:
         for ent in ENTRIES:
             hcols += [f"{name}_{ent}_{x}" for x in ("ret", "dir", "x_spx", "x_loc", "x_univ", "adr_units")]
-        hcols += [f"{name}_{x}" for x in ("mfe", "mae", "triggered", "target_hit", "level_held", "tier", "tier_held", "due")]
+        hcols += [f"{name}_{x}" for x in ("px", "hi", "hi_pct", "lo", "lo_pct", "mfe", "mae", "triggered", "target_hit",
+                                          "level_held", "tier", "tier_held", "due")]
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(cols + hcols)
@@ -759,7 +773,8 @@ def write_csv(rows, path):
                 for ent in ENTRIES:
                     x = res.get(ent) or {}
                     line += [x.get(k) for k in ("ret", "dir", "x_spx", "x_loc", "x_univ", "adr_units")]
-                line += [res.get(k) for k in ("mfe", "mae", "triggered", "target_hit", "level_held", "tier", "tier_held", "due")]
+                line += [res.get(k) for k in ("px", "hi", "hi_pct", "lo", "lo_pct", "mfe", "mae", "triggered", "target_hit",
+                                              "level_held", "tier", "tier_held", "due")]
             w.writerow(line)
 
 

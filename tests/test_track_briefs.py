@@ -66,17 +66,29 @@ class Scoring(unittest.TestCase):
         self.assertEqual(s["res"]["1W"]["close"]["dir"], -20.0)
         self.assertLess(s["res"]["1W"]["mae"], 0)
 
-    def test_pending_and_month(self):
+    def test_pending_and_no_month(self):
         r = self.run_card(1, today=self.ds[29] + timedelta(days=1))
-        self.assertIn("1M", r["res"])
+        self.assertEqual(set(r["res"]), {"1D", "1W", "20D"})
         short, _ = chart([100.0] * 32)
         d = setup_dir({"BBB": short})
         p = tb.Prices(d, fetcher=Fake(), today=date(2026, 10, 20))
         out = tb.score_card({"sym": "BBB", "k": "BBB", "last": 100.0}, 1, self.session, p, p.today)
         self.assertTrue(out["res"]["20D"]["pending"])
         self.assertFalse(out["res"]["1D"].get("pending", False))
-        full = self.run_card(1)
-        self.assertEqual(full["res"]["1M"]["close"]["ret"], 20.0)
+
+    def test_holiday_placeholder_is_not_a_session(self):
+        b = {"t": [0, 86400, 172800], "o": [10, 11, 11], "h": [10.5, 11.5, 11], "l": [9.5, 10.5, 11], "c": [10, 11, 11],
+             "v": [5, 6, 0]}
+        self.assertEqual(tb.Prices._clean(b)["c"], [10, 11])
+
+    def test_peak_and_trough_prices(self):
+        r = self.run_card(1)
+        d1, w1 = r["res"]["1D"], r["res"]["1W"]
+        self.assertAlmostEqual(d1["hi"], 111.1)          # the 1D bar's high (close 110)
+        self.assertAlmostEqual(w1["hi"], 121.2)          # highest high over 5 sessions
+        self.assertAlmostEqual(w1["lo"], 108.9)          # lowest low over 5 sessions
+        self.assertAlmostEqual(w1["hi_pct"], 21.2)       # from the signal close of 100
+        self.assertEqual(w1["px"], 120.0)
 
     def test_live_bar_never_counts(self):
         b, ds = chart([100.0] * 30 + [130.0])
