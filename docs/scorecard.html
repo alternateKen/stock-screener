@@ -25,9 +25,19 @@ table.trk .hl em{font-style:normal}
 table.trk td.nm{vertical-align:top;min-width:200px}
 table.trk td.nm small{display:block;color:var(--mute);font-size:11px;white-space:normal}
 table.trk td.nm small.why{max-width:340px}
-#positions th small,table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
+#positions th small,table.trk tr.lhead td{background:var(--bg);padding:16px 12px 8px;border-bottom:2px solid var(--line)}
+table.trk tr.lhead .lt{font-size:17px;font-weight:700;letter-spacing:.1px}
+table.trk tr.lhead .lt.up{color:var(--up)}table.trk tr.lhead .lt.dn{color:var(--dn)}
+table.trk tr.lhead .mu{font-size:12px;margin-left:6px}
+table.trk tr.pick td{background:color-mix(in srgb,var(--acc) 7%,transparent)}
+table.trk tr.pick td.nm{box-shadow:inset 3px 0 0 var(--acc)}
+table.trk tr.ext td{opacity:.62}
+table.trk th.sortable{cursor:pointer}table.trk th.sortable.on{color:var(--acc)}
+table.trk td.nm a.stk{font-size:15px;font-weight:600}
+.tag.pick{background:var(--acc);color:#fff;border-color:var(--acc)}
+.tag.ext{color:var(--mute)}
+table.trk th small{display:block;font-weight:400;color:var(--mute);font-size:10px}
 .tag{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid currentColor;vertical-align:1px}
-.tag.pick{color:var(--acc)}
 #q{padding:5px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12px;min-width:170px}
 details.stats{margin:14px 0}
 details.stats>summary{cursor:pointer;font-weight:600;padding:10px 20px;color:var(--acc)}
@@ -116,7 +126,10 @@ function themesHTML(){
    <div class="note">+1 means the brief's theme ranking was exactly the order of what came next; 0 means no relationship. Momentum calls are working when this sits persistently above about +0.2.</div></section>`;
 }
 // ---- the main view: one brief, every setup, return plus high / low in each window ----
-const T={brief:null,side:'all',q:''};
+const T={brief:null,side:'all',q:'',sort:'rank'};
+// pick rank: the brief's own Best and Cleanest calls first, names it flagged as extended last
+const PICK_RANK={'Best long':0,'Best short':0,'Cleanest':1,'Extended: do not chase':3};
+const pickRank=tags=>tags&&tags.length?Math.min(...tags.map(t=>PICK_RANK[t]??2)):2;
 const MAIN=[['breakouts','pullbacks','near_breakout'],['breakdowns','bounces','near_breakdown'],['improving'],['deteriorating'],['leaders_lead','leaders_lag']].flat();
 const PICK_TAG={pick_best_long:'Best long',pick_best_short:'Best short',pick_clean_long:'Cleanest',pick_clean_short:'Cleanest',pick_extended:'Extended: do not chase'};
 const dp=v=>v==null?2:Math.abs(v)>=1000?0:Math.abs(v)>=100?1:2;
@@ -150,22 +163,32 @@ function trackerHTML(){
   const all=S.rows.filter(r=>r.brief===T.brief);
   const picks={};all.filter(r=>r.list.startsWith('pick_')).forEach(r=>(picks[r.sym]=picks[r.sym]||[]).push(PICK_TAG[r.list]));
   const q=T.q.trim().toUpperCase();
-  const keep=r=>(T.side==='all'||(T.side==='long')===(r.side>0))&&(!q||r.sym.toUpperCase().includes(q)||(r.name||'').toUpperCase().includes(q));
-  const head=`<tr><th style="text-align:left">Stock</th><th>Entry<small>signal close</small></th>${S.horizons.map(h=>`<th>${h}<small>close · high · low</small></th>`).join('')}</tr>`;
+  const sideOk=r=>T.side==='all'?true:T.side==='picks'?pickRank(picks[r.sym])<2:(T.side==='long')===(r.side>0);
+  const keep=r=>sideOk(r)&&(!q||r.sym.toUpperCase().includes(q)||(r.name||'').toUpperCase().includes(q));
+  const dirOf=(r,h)=>{const x=(r.res||{})[h];return x&&!x.pending&&x.close?x.close.dir:null};
+  const order=rs=>{const idx=new Map(rs.map((r,i)=>[r,i]));const by=T.sort;
+    return rs.slice().sort((a,b)=>{
+      if(by==='clean'){const d=pickRank(picks[a.sym])-pickRank(picks[b.sym]);if(d)return d}
+      else if(by!=='rank'){const x=dirOf(a,by),y=dirOf(b,by);if(x==null&&y!=null)return 1;if(y==null&&x!=null)return -1;if(x!=null&&y!=null&&x!==y)return y-x}
+      return idx.get(a)-idx.get(b)})};
+  const head=`<tr><th style="text-align:left">Stock</th><th>Entry<small>signal close</small></th>${S.horizons.map(h=>`<th class="sortable ${T.sort===h?'on':''}" data-sort="${h}" title="Sort by ${h}: best for the trade first">${h}${T.sort===h?' ▼':''}<small>close · high · low</small></th>`).join('')}</tr>`;
   const body=MAIN.map(l=>{
-    const rs=all.filter(r=>r.list===l&&keep(r));if(!rs.length)return '';
-    return `<tr class="grp"><td colspan="${S.horizons.length+2}">${esc(S.labels[l]||l)} <span class="mu">· ${rs.length}</span></td></tr>`+rs.map(r=>
-      `<tr><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag pick">${esc(t)}</span>`).join('')}
+    const rs=order(all.filter(r=>r.list===l&&keep(r)));if(!rs.length)return '';
+    return `<tr class="lhead"><td colspan="${S.horizons.length+2}"><span class="lt ${l.startsWith('break')||l==='near_breakdown'||l==='bounces'||l==='deteriorating'||l==='leaders_lag'?'dn':'up'}">${esc(S.labels[l]||l)}</span> <span class="mu">${rs.length} stock${rs.length>1?'s':''}</span></td></tr>`+rs.map(r=>
+      `<tr class="${pickRank(picks[r.sym])<2?'pick':pickRank(picks[r.sym])===3?'ext':''}"><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag ${PICK_RANK[t]===3?'ext':'pick'}">${PICK_RANK[t]===3?'':'★ '}${esc(t)}</span>`).join('')}
         <small>${esc(r.name||'')}</small><small class="why">${esc(r.why||'')}</small>${r.flag?`<small class="warn">⚠ ${esc(r.flag)}</small>`:''}</td>
         <td class="hz"><b>${px(r.entry_close)}</b><span class="hl">${esc(r.cur||'')} · ${esc(r.signal_day||'')}</span></td>${S.horizons.map(h=>hzCell(r,h)).join('')}</tr>`).join('')}).join('');
   const chip=(k,v,l)=>`<span class="fchip ${T[k]===v?'on':''}" data-t="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
   return `<section id="tracker"><h2>Setups from the brief of ${esc(T.brief)}</h2>
    <div class="filters" style="margin-bottom:10px"><div class="grp"><span class="lbl">Brief</span>${briefs.map(b=>chip('brief',b,b)).join('')}</div>
-     <div class="grp"><span class="lbl">Show</span>${chip('side','all','All')}${chip('side','long','Longs')}${chip('side','short','Shorts')}</div>
+     <div class="grp"><span class="lbl">Show</span>${chip('side','all','All')}${chip('side','long','Longs')}${chip('side','short','Shorts')}${chip('side','picks','★ Cleanest picks')}</div>
+     <div class="grp"><span class="lbl">Sort</span>${chip('sort','rank','Brief order')}${chip('sort','clean','Cleanest first')}${S.horizons.map(h=>chip('sort',h,h)).join('')}</div>
      <input id="q" type="search" placeholder="Find a ticker or name" value="${esc(T.q)}"></div>
    ${glance(all)}
    <div class="scroll" style="margin-top:12px"><table class="trk">${head}${body||`<tr><td colspan="${S.horizons.length+2}" class="mu">No setups match.</td></tr>`}</table></div>
    <div class="note">Windows are counted in the stock's own trading sessions after the brief's signal bar: 1D = next session, 1W = 5 sessions, 20D = 20 sessions.
+   Brief order is the screener's own ranking: breakouts, pullbacks and Improving by 3-month strength against the S&amp;P 500 (strongest first), breakdowns, bounces and Deteriorating by the same measure weakest first, near breakout / breakdown by the distance to the level (nearest first), leaders as listed. Sorting by 1D, 1W or 20D puts the best result for the trade first (the biggest rise for a long, the biggest fall for a short); stocks still waiting go last.
+   ★ marks the brief's own Best and Cleanest calls from Notion; rows the brief flagged as extended are dimmed.
    The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.
    Green means the move was in the trade's favour (up for a long, down for a short). <a href="scorecard.csv" style="color:var(--acc)">Download every result as CSV</a> for Excel.</div></section>`;
 }
@@ -223,6 +246,7 @@ function render(){
     +overviewHTML()+filtersHTML()+summaryHTML()+mechanicsHTML()+healthHTML()+themesHTML()+'</details>';
   document.querySelectorAll('[data-f]').forEach(c=>c.onclick=()=>{F[c.dataset.f]=c.dataset.v;render()});
   document.querySelectorAll('[data-t]').forEach(c=>c.onclick=()=>{T[c.dataset.t]=c.dataset.v;render()});
+  document.querySelectorAll('table.trk th[data-sort]').forEach(c=>c.onclick=()=>{T.sort=T.sort===c.dataset.sort?'rank':c.dataset.sort;render()});
   document.querySelectorAll('[data-ps]').forEach(c=>c.onclick=()=>{PS.view=c.dataset.ps;render()});
   const q=document.getElementById('q');q.oninput=()=>{T.q=q.value;const p=q.selectionStart;render();const n=document.getElementById('q');n.focus();n.setSelectionRange(p,p)};
 }
