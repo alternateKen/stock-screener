@@ -40,6 +40,14 @@ CACHE = os.path.join(ROOT, "data", ".price_cache")
 HORIZONS = (("1D", 1), ("1W", 5), ("20D", 20))
 ENTRIES = ("close", "open")
 US_CLOSE_UTC_HOUR = 20      # 16:00 New York = 20:00 UTC (summer) / 21:00 UTC (winter); brief["intraday"] covers the gap
+LOCAL_UTC_HOURS = 8         # the owner's clock (Malaysia): the brief and the midday updates are timed on it
+# editions: the 06:30 morning brief, the Asia midday update (first build from 12:00 local, Asian stocks only) and the US
+# midday update (first build from 30 minutes after the US open, US stocks only). Midday setups are measured from their
+# price at that build, with a "Close" window (rest of that day) before 1D / 1W / 20D.
+EDITIONS = {"morning": "morning", "asia": "Asia midday", "us": "US midday"}
+ASIA_MIDDAY_UTC = (4, 9)    # 12:00-17:00 local
+US_SETTLE_MIN = 30
+CLOSE_H = ("Close", 0)
 
 # list key -> (section in brief.json, side: +1 long / -1 short, label)
 LISTS = {
@@ -285,8 +293,9 @@ LEVEL_RE = re.compile(r"(breakout|breakdown) level ([0-9.e+]+) \(target ([0-9.e+
 SR_RE = re.compile(r"(?:Breakout above resistance|Breakdown below support) ([0-9.e+]+)")
 
 
-def score_card(card, side, session, prices, today, univ=None):
-    """One setup -> its measured outcome at every horizon and entry."""
+def score_card(card, side, session, prices, today, univ=None, intraday=False):
+    """One setup -> its measured outcome at every horizon and entry. intraday: a midday edition, measured from the card's
+    price at that build ("last"), with a Close window (the rest of that day) first."""
     k = card.get("k") or key_for(card["sym"])
     out = {"k": k, "status": "ok", "res": {}}
     b = prices.get(k)
@@ -295,11 +304,18 @@ def score_card(card, side, session, prices, today, univ=None):
         out["status"] = "no prices"
         return out
     i0 = signal_index(b, card, session)
+    hz = ([CLOSE_H] if intraday else []) + list(HORIZONS)
     if i0 is None:
+        if intraday and card.get("t0") and b["t"] and card["t0"] > b["t"][-1]:   # that day's session hasn't closed yet
+            d0 = date.fromisoformat(session)
+            out["res"] = {n: {"pending": True, "due": add_weekdays(d0, h).isoformat()} for n, h in hz}
+            return out
         out["status"] = "signal bar not found"
         return out
     c0 = b["c"][i0]
-    if card.get("last") and abs(c0 / card["last"] - 1) > 0.02:
+    if intraday and card.get("last"):
+        c0 = card["last"]
+    elif card.get("last") and abs(c0 / card["last"] - 1) > 0.02:
         out["flag"] = f"signal close {c0:.4g} vs brief {card['last']:.4g}: history revised (split / adjustment?)"
     hs = [h / l for h, l in zip(b["h"][max(0, i0 - 19):i0 + 1], b["l"][max(0, i0 - 19):i0 + 1]) if h and l]
     adr = (sum(hs) / len(hs) - 1) * 100 if hs else None
@@ -310,7 +326,7 @@ def score_card(card, side, session, prices, today, univ=None):
     brk_level = float(sr.group(1)) if sr else None
     tiers = tiers_of(b) if card.get("tier") else None
     spx, loc = prices.get(SPX), prices.get(LOCAL_INDEX.get(suffix(k), SPX))
-    for name, h in HORIZONS:
+    for name, h in hz:
         j, due = horizon_index(b, i0, h, today)
         if j is None:
             out["res"][name] = {"pending": True, "due": (due or add_weekdays(b["d"][i0], h)).isoformat()}
@@ -330,12 +346,16 @@ def score_card(card, side, session, prices, today, univ=None):
             for lab, bb in (("spx", spx), ("loc", loc)):
                 br = bench_return(bb, d_from, b["d"][j])
                 x[f"x_{lab}"] = None if br is None else round(side * (ret - br), 2)
-            if univ is not None and ent == "close":   # the baseline basket is measured close to close
+            if univ is not None and ent == "close" and h:   # the baseline basket is measured close to close
                 ur = univ(session, name)
                 x["x_univ"] = None if ur is None else round(side * (ret - ur), 2)
             if adr:
                 x["adr_units"] = round(side * ret / adr, 2)
             r[ent] = x
+        if j == i0:   # the Close window: daily bars can't say what traded after the midday build
+            r.update(day=b["d"][j].isoformat(), px=b["c"][j])
+            out["res"][name] = r
+            continue
         hi, lo = max(b["h"][i0 + 1:j + 1]), min(b["l"][i0 + 1:j + 1])
         mfe, mae = ((hi / c0 - 1) * 100, (lo / c0 - 1) * 100) if side > 0 else ((1 - lo / c0) * 100, (1 - hi / c0) * 100)
         r.update(mfe=round(mfe, 2), mae=round(mae, 2), day=b["d"][j].isoformat(), px=b["c"][j],
@@ -370,6 +390,40 @@ def in_brief_window(gen, session, intraday):
     return start <= gen < end
 
 
+def us_open_utc(d):
+    """09:30 New York on day d, in UTC."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime(d.year, d.month, d.day, 9, 30, tzinfo=ZoneInfo("America/New_York")).astimezone(timezone.utc)
+    except Exception:  # noqa: BLE001   no time-zone data: US daylight time runs from the 2nd Sunday of March to the 1st of November
+        mar = date(d.year, 3, 8) + timedelta(days=(6 - date(d.year, 3, 8).weekday()) % 7)
+        nov = date(d.year, 11, 1) + timedelta(days=(6 - date(d.year, 11, 1).weekday()) % 7)
+        return datetime(d.year, d.month, d.day, 13 if mar <= d < nov else 14, 30, tzinfo=timezone.utc)
+
+
+def midday_edition(gen, intraday):
+    """A build the Asia or US midday update is written from -> (edition, its date), else None."""
+    gen = gen if gen.tzinfo else gen.replace(tzinfo=timezone.utc)
+    local = (gen + timedelta(hours=LOCAL_UTC_HOURS)).date()
+    if local.weekday() < 5 and ASIA_MIDDAY_UTC[0] <= gen.hour < ASIA_MIDDAY_UTC[1] and not intraday:
+        return "asia", local
+    us_day = (gen - timedelta(hours=5)).date()   # New York's date (UTC-4 / -5) during US hours
+    if intraday and us_day.weekday() < 5 and gen >= us_open_utc(us_day) + timedelta(minutes=US_SETTLE_MIN):
+        return "us", us_day
+    return None
+
+
+def edition_cards(brief, edition):
+    """A midday edition keeps the stocks its update is about: non-US for Asia, US-listed for the US."""
+    us = edition == "us"
+    for path, _, _ in LISTS.values():
+        node, parent = brief, None
+        for part in path:
+            parent, node = node, (node or {}).get(part)
+        if parent is not None and isinstance(node, list):
+            parent[path[-1]] = [c for c in node if ((c.get("cur") or "USD") == "USD") == us]
+
+
 def strip_brief(brief):
     return {k: v for k, v in brief.items() if k not in ("changes", "data_flags")}
 
@@ -384,7 +438,11 @@ def archive(out_dir, now=None):
     gen = datetime.fromisoformat(brief["generated"])
     session = brief.get("us_session")
     if not in_brief_window(gen, session, brief.get("intraday")):
-        print(f"archive: build {brief['generated']} is not between the {session} US close and the next Asian open; nothing archived")
+        mid = midday_edition(gen, brief.get("intraday"))
+        if mid:
+            return archive_midday(out_dir, brief, *mid)
+        print(f"archive: build {brief['generated']} is neither the morning brief's (after the {session} US close, before "
+              "the next Asian open) nor a midday update's; nothing archived")
         return None
     prices = Prices(out_dir)
     for card in iter_cards(brief):
@@ -408,6 +466,47 @@ def archive(out_dir, now=None):
         json.dump(brief, f, separators=(",", ":"))
     print(f"archive: wrote {dest}")
     return dest
+
+
+def archive_midday(out_dir, brief, edition, day):
+    """The first build of an Asia / US midday window, kept as data/briefs/<day>-<edition>.json (later builds that day are
+    not: the update is written from the first). Each card is stamped with its day's bar (t0), which may still be live."""
+    dest = os.path.join(ARCHIVE, f"{day.isoformat()}-{edition}.json")
+    if os.path.exists(dest):
+        print(f"archive: {dest} already kept (the {EDITIONS[edition]} update uses the first build)")
+        return dest
+    edition_cards(brief, edition)
+    cdir = os.path.join(out_dir, "charts")
+    for card in iter_cards(brief):
+        p = os.path.join(cdir, screen.chart_file(card["k"])) if card.get("k") else None
+        if p and os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                t = json.load(f)["t"]
+            if t:
+                card["t0"] = t[-1]
+    brief = strip_brief(brief)
+    brief.update(source="brief.json", edition=edition, edition_date=day.isoformat())
+    os.makedirs(ARCHIVE, exist_ok=True)
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(brief, f, separators=(",", ":"))
+    print(f"archive: wrote {dest}")
+    return dest
+
+
+def brief_id(br):
+    """Rows name their brief by this: the US session for the morning brief (as before), '<day> Asia midday' and so on."""
+    ed = br.get("edition") or "morning"
+    return br["us_session"] if ed == "morning" else f"{br['edition_date']} {EDITIONS[ed]}"
+
+
+def brief_label(br):
+    ed = br.get("edition") or "morning"
+    try:
+        when = (datetime.fromisoformat(br["generated"]) + timedelta(hours=LOCAL_UTC_HOURS)).date()
+    except (KeyError, TypeError, ValueError):
+        when = date.fromisoformat(br.get("edition_date") or br["us_session"]) + timedelta(days=1)
+    day = f"{when.day} {when:%b}"
+    return f"{day} morning (US {br['us_session'][5:]})" if ed == "morning" else f"{day} {EDITIONS[ed]}"
 
 
 def iter_cards(brief):
@@ -677,10 +776,10 @@ def load_archive():
     out = []
     if os.path.isdir(ARCHIVE):
         for f in sorted(os.listdir(ARCHIVE)):
-            if re.match(r"\d{4}-\d{2}-\d{2}\.json$", f):
+            if re.match(r"\d{4}-\d{2}-\d{2}(-asia|-us)?\.json$", f):
                 with open(os.path.join(ARCHIVE, f), encoding="utf-8") as fh:
                     out.append(json.load(fh))
-    return out
+    return sorted(out, key=lambda b: b.get("generated") or b["us_session"])
 
 
 def sublist(key, card):
@@ -803,7 +902,10 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
     for n_br, br in enumerate(briefs):
         if not quiet and n_br and n_br % 50 == 0:
             print(f"  scored {n_br}/{len(briefs)} briefs")
-        session = br["us_session"]
+        edition = br.get("edition") or "morning"
+        intraday = edition != "morning"
+        session = br.get("edition_date") if intraday else br["us_session"]
+        bid = brief_id(br)
         status = ((br.get("leaders") or {}).get("health") or {}).get("status")
         seen, first = {}, len(rows)
         for key, (path, side, label) in LISTS.items():
@@ -811,8 +913,8 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
             for p in path:
                 node = (node or {}).get(p)
             for card in node or []:
-                sc = score_card(card, side, session, prices, today, univ)
-                row = {"brief": session, "health": status, "list": key, "label": label, "side": side,
+                sc = score_card(card, side, session, prices, today, None if intraday else univ, intraday)
+                row = {"brief": bid, "edition": edition, "health": status, "list": key, "label": label, "side": side,
                        "sym": card["sym"], "name": card.get("name"), "where": card.get("where"), "why": card.get("why"),
                        "tier0": card.get("tier"), "vs21": card.get("vs21"), "rs3": card.get("rs3"), "last": card.get("last"),
                        "cur": card.get("cur"), **sc}
@@ -829,6 +931,8 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                 src = seen.get((sym, PICKS[pk][0]))
                 if src:
                     rows.append({**src, "list": pk, "label": PICKS[pk][1]})
+        if intraday:   # the health call and theme ranking are the morning brief's
+            continue
         # market-health call: what did the leaders and the S&P do next?
         h = {"brief": session, "status": status}
         lead = [r for r in rows[first:] if r["list"] == "leaders_lead" and r["status"] == "ok"]
@@ -864,9 +968,10 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                 t[f"rho_m1_{name}"] = spearman([x["m1"] for x in t["themes"]], [x[f"fwd_{name}"] for x in t["themes"]])
                 t[f"rho_tier_{name}"] = spearman([x["net_tier_5d"] for x in t["themes"]], [x[f"fwd_{name}"] for x in t["themes"]])
             themes.append(t)
-    cube, mech = summarise(rows)
-    ps = positions(rows, prices)
-    keep = {b["us_session"] for b in briefs[-ROWS_BRIEFS:]}
+    morning = [r for r in rows if r.get("edition", "morning") == "morning"]
+    cube, mech = summarise(morning)   # statistics and positions: the morning brief only, so they stay comparable
+    ps = positions(morning, prices)
+    keep = [brief_id(b) for b in briefs[-ROWS_BRIEFS * 3:]]
     srcs = {}
     for r in rows:
         if r["list"] in LISTS and r.get("px_src"):
@@ -876,11 +981,13 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
     labels.update({k: v[1] for k, v in AGGREGATES.items()})
     labels.update({k: v[1] for k, v in SUBLISTS.items()})
     out = {"generated": datetime.now(timezone.utc).isoformat(timespec="minutes"), "today": today.isoformat(),
-           "horizons": [h for h, _ in HORIZONS], "briefs": [{"session": b["us_session"], "source": b.get("source"),
+           "horizons": [h for h, _ in HORIZONS], "intraday_horizon": CLOSE_H[0],
+           "briefs": [{"session": b["us_session"], "id": brief_id(b), "label": brief_label(b), "edition": b.get("edition") or "morning",
+                       "source": b.get("source"),
                                                             "status": ((b.get("leaders") or {}).get("health") or {}).get("status"),
                                                             "picks": bool(b.get("picks"))} for b in briefs],
            "labels": labels, "cube": cube, "mech": mech, "health": health, "themes": themes,
-           "rows": [r for r in rows if r["brief"] in keep], "rows_briefs": sorted(keep),
+           "rows": [r for r in rows if r["brief"] in set(keep)], "rows_briefs": keep,
            "price_source": " + ".join(f"{'Bloomberg' if k == 'bbg' else 'Yahoo'} {v}" for k, v in sorted(srcs.items())) or "–",
            "positions": ps, "pos_summary": positions_summary(ps), "pos_rules": {"max": POS_MAX, "whipsaw": WHIPSAW},
            "universe_baseline": bool(univ_keys)}
@@ -897,10 +1004,10 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
 
 
 def write_csv(rows, path):
-    cols = ["brief", "health", "list", "side", "sym", "name", "where", "why", "tier0", "vs21", "rs3", "cur", "last",
+    cols = ["brief", "edition", "health", "list", "side", "sym", "name", "where", "why", "tier0", "vs21", "rs3", "cur", "last",
             "status", "flag", "signal_day", "entry_close", "adr"]
     hcols = []
-    for name, _ in HORIZONS:
+    for name, _ in [CLOSE_H] + list(HORIZONS):
         for ent in ENTRIES:
             hcols += [f"{name}_{ent}_{x}" for x in ("ret", "dir", "x_spx", "x_loc", "x_univ", "adr_units")]
         hcols += [f"{name}_{x}" for x in ("px", "hi", "hi_pct", "lo", "lo_pct", "mfe", "mae", "triggered", "target_hit",
@@ -910,7 +1017,7 @@ def write_csv(rows, path):
         w.writerow(cols + hcols)
         for r in rows:
             line = [r.get(c) for c in cols]
-            for name, _ in HORIZONS:
+            for name, _ in [CLOSE_H] + list(HORIZONS):
                 res = r.get("res", {}).get(name) or {}
                 for ent in ENTRIES:
                     x = res.get(ent) or {}
