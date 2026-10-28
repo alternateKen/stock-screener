@@ -7,3 +7,4 @@ docs/scorecard.csv
 data/.backtest_cache/
 backtest/
 docs/positions.csv
+stock-screener dispatch/
