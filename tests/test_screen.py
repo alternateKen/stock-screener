@@ -276,6 +276,41 @@ class ListingChoice(unittest.TestCase):
         self.assertEqual(data["stocks"]["000660.KS"]["ysym"], "000660.KQ")
 
 
+class YahooBlankDay(unittest.TestCase):
+    """Yahoo lists 27 Oct with no prices while its quote has the 27 Oct close: the day is rebuilt from the quote."""
+    def fake(self, closes):
+        day = 86400
+        ts = [1792502400 + 48600 + i * day for i in range(len(closes))]   # 13:30 UTC opens
+        res = {"meta": {"regularMarketTime": ts[-1] + 23400, "regularMarketPrice": 531.33, "regularMarketDayHigh": 534.7,
+                        "regularMarketDayLow": 528.33, "regularMarketVolume": 19400000,
+                        "currentTradingPeriod": {"regular": {"start": ts[-1] + day, "end": ts[-1] + day + 23400}}},
+               "timestamp": ts, "indicators": {"quote": [{"close": closes, "high": [c and c + 1 for c in closes],
+                                                          "low": [c and c - 1 for c in closes], "open": [c for c in closes],
+                                                          "volume": [100] * len(closes)}]}}
+        return json.dumps({"chart": {"result": [res]}})
+
+    def test_blank_latest_day_rebuilt_from_quote(self):
+        orig = screen.get
+        screen.get = lambda url, tries=2, timeout=12: self.fake([520.0, 524.5, 532.6, None])
+        try:
+            b = screen.yahoo_bars("MSFT")
+        finally:
+            screen.get = orig
+        self.assertEqual(len(b["t"]), 4)
+        self.assertEqual(b["c"][-2], 532.6)          # 26 Oct keeps its own close
+        self.assertEqual(b["c"][-1], 531.33)         # 27 Oct from the quote
+        self.assertEqual((b["h"][-1], b["l"][-1]), (534.7, 528.33))
+
+    def test_normal_day_unchanged(self):
+        orig = screen.get
+        screen.get = lambda url, tries=2, timeout=12: self.fake([520.0, 524.5, 532.6, 531.33])
+        try:
+            b = screen.yahoo_bars("MSFT")
+        finally:
+            screen.get = orig
+        self.assertEqual(b["c"], [520.0, 524.5, 532.6, 531.33])
+
+
 class Consensus(unittest.TestCase):
     def test_merge(self):
         with tempfile.TemporaryDirectory() as d:
