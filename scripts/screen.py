@@ -384,15 +384,19 @@ def yahoo_bars(symbol):
     reg = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
     tm = meta.get("regularMarketTime", rows[-1][0])
     live, live_bad = meta.get("regularMarketPrice"), None
+    # Yahoo sometimes lists the latest session with blank prices while its quote already has them (seen hours after the
+    # US close): that day is rebuilt from the quote, not dropped, or the previous bar would take its close as "live".
+    # The listed session, a newer quote and a day range around the price are a real day, so a big move is kept too.
+    ts = res["timestamp"]
+    hi_q, lo_q = meta.get("regularMarketDayHigh"), meta.get("regularMarketDayLow")
+    blank_day = (live is not None and ts[-1] > rows[-1][0] and ts[-1] <= tm and hi_q and lo_q
+                 and lo_q * 0.999 <= live <= hi_q * 1.001)
     # Yahoo keeps stale duplicate listings (e.g. a KOSDAQ stock also under .KS) whose "live" price is frozen: a live
     # price older than the last bar, or more than 15% away from it, is not used (the last bar's close stands)
-    if live is not None and (tm < rows[-1][0] or abs(live / rows[-1][1] - 1) > 0.15):
+    if live is not None and not blank_day and (tm < rows[-1][0] or abs(live / rows[-1][1] - 1) > 0.15):
         live, live_bad = None, live
         tm = rows[-1][0]
-    # Yahoo sometimes lists the latest session with blank prices while its quote already has them (seen hours after the
-    # US close): that day is rebuilt from the quote, not dropped, or the previous bar would take its close as "live"
-    ts = res["timestamp"]
-    if live is not None and ts[-1] > rows[-1][0] and ts[-1] <= tm and meta.get("regularMarketDayHigh") and meta.get("regularMarketDayLow"):
+    if blank_day:
         o = opens[-1] if opens[-1] is not None else rows[-1][1]
         rows.append((ts[-1], live, max(meta["regularMarketDayHigh"], live, o), min(meta["regularMarketDayLow"], live, o),
                      meta.get("regularMarketVolume") or 0, o))

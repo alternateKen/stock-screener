@@ -301,6 +301,16 @@ class YahooBlankDay(unittest.TestCase):
         self.assertEqual(b["c"][-1], 531.33)         # 27 Oct from the quote
         self.assertEqual((b["h"][-1], b["l"][-1]), (534.7, 528.33))
 
+    def test_blank_day_with_a_big_move_is_kept(self):
+        """INOD fell 25% on a day Yahoo left blank: a listed session and a matching day range make it real."""
+        orig = screen.get
+        screen.get = lambda url, tries=2, timeout=12: self.fake([520.0, 524.5, 700.0, None])   # quote 531.33 = -24%
+        try:
+            b = screen.yahoo_bars("X")
+        finally:
+            screen.get = orig
+        self.assertEqual((b["c"][-1], b["last"], b["live_bad"]), (531.33, 531.33, None))
+
     def test_normal_day_unchanged(self):
         orig = screen.get
         screen.get = lambda url, tries=2, timeout=12: self.fake([520.0, 524.5, 532.6, 531.33])

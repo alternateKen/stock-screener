@@ -342,6 +342,25 @@ class MiddayEditions(unittest.TestCase):
             self.assertEqual(json.load(f)["generated"], "2026-10-27T04:05:00+00:00")
         self.assertEqual([tb.brief_id(b) for b in tb.load_archive()], ["2026-10-27 Asia midday"])
 
+    def test_pending_row_still_shows_its_entry(self):
+        raw, ds = chart([100.0] * 31)
+        d = setup_dir({"AAA": raw}, {"AAA": True})
+        p = tb.Prices(d, fetcher=Fake(), today=ds[30])
+        out = tb.score_card({"sym": "AAA", "k": "AAA", "last": 100.5, "t0": raw["t"][30]}, 1, ds[30].isoformat(), p, p.today, intraday=True)
+        self.assertEqual((out["entry_close"], out["signal_day"]), (100.5, ds[30].isoformat()))
+
+    def test_redated_bar_falls_back_to_price_match(self):
+        raw, ds = chart([100.0] * 29 + [103.0, 104.0])
+        d = setup_dir({"AAA": raw})
+        p = tb.Prices(d, fetcher=Fake(), today=ds[-1] + timedelta(days=3))
+        gone = raw["t"][29] + 3600   # stamped on a bar Yahoo has since re-dated
+        out = tb.score_card({"sym": "AAA", "k": "AAA", "last": 103.0, "t0": gone}, 1, ds[29].isoformat(), p, p.today)
+        self.assertEqual((out["status"], out["signal_day"]), ("ok", ds[29].isoformat()))
+        self.assertAlmostEqual(out["res"]["1D"]["close"]["ret"], (104 / 103 - 1) * 100, places=2)
+        # a morning brief whose stamped bar now looks newer than every bar (ASX re-dating) still matches by price
+        out = tb.score_card({"sym": "AAA", "k": "AAA", "last": 104.0, "t0": raw["t"][-1] + 86400}, 1, ds[30].isoformat(), p, p.today)
+        self.assertEqual((out["status"], out["entry_close"]), ("ok", 104.0))
+
     def test_labels(self):
         m = {"us_session": "2026-10-23", "generated": "2026-10-25T22:40:00+00:00"}
         a = {"us_session": "2026-10-23", "edition": "asia", "edition_date": "2026-10-26", "generated": "2026-10-26T04:05:00+00:00"}

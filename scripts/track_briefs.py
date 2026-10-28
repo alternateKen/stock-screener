@@ -244,11 +244,16 @@ def tiers_of(b):
     return b["memo"]["tiers"]
 
 
-def signal_index(b, card, session):
+def signal_index(b, card, session, intraday=False):
     """The bar the brief was computed from: stamped t0 (archive), else the bar near the session date whose close
-    matches the brief's price, else the last bar on or before the session date."""
+    matches the brief's price, else the last bar on or before the session date. For a midday edition a t0 newer than
+    every bar is a day still trading (None); any other t0 that is gone (Yahoo re-dates some exchanges' bars, e.g. the
+    ASX) falls back to the match: a morning brief's signal day had always closed."""
     if card.get("t0") is not None and b.get("src") != "bbg":   # t0 is a Yahoo bar time; Bloomberg bars match by date
-        return b["t"].index(card["t0"]) if card["t0"] in b["t"] else None
+        if card["t0"] in b["t"]:
+            return b["t"].index(card["t0"])
+        if not b["t"] or intraday and card["t0"] > b["t"][-1]:
+            return None
     mk = ("sig", session, card.get("last"))
     if mk not in b.get("memo", {}):
         b.setdefault("memo", {})[mk] = _signal_index(b, card, session)
@@ -303,9 +308,10 @@ def score_card(card, side, session, prices, today, univ=None, intraday=False):
     if not b or len(b["c"]) < 3:
         out["status"] = "no prices"
         return out
-    i0 = signal_index(b, card, session)
+    i0 = signal_index(b, card, session, intraday)
     hz = ([CLOSE_H] if intraday else []) + list(HORIZONS)
     if i0 is None:
+        out.update(entry_close=card.get("last"), signal_day=session)   # the brief's own price, shown while it can't be scored
         if intraday and card.get("t0") and b["t"] and card["t0"] > b["t"][-1]:   # that day's session hasn't closed yet
             d0 = date.fromisoformat(session)
             out["res"] = {n: {"pending": True, "due": add_weekdays(d0, h).isoformat()} for n, h in hz}
