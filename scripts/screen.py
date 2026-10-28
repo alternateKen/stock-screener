@@ -389,6 +389,13 @@ def yahoo_bars(symbol):
     if live is not None and (tm < rows[-1][0] or abs(live / rows[-1][1] - 1) > 0.15):
         live, live_bad = None, live
         tm = rows[-1][0]
+    # Yahoo sometimes lists the latest session with blank prices while its quote already has them (seen hours after the
+    # US close): that day is rebuilt from the quote, not dropped, or the previous bar would take its close as "live"
+    ts = res["timestamp"]
+    if live is not None and ts[-1] > rows[-1][0] and ts[-1] <= tm and meta.get("regularMarketDayHigh") and meta.get("regularMarketDayLow"):
+        o = opens[-1] if opens[-1] is not None else rows[-1][1]
+        rows.append((ts[-1], live, max(meta["regularMarketDayHigh"], live, o), min(meta["regularMarketDayLow"], live, o),
+                     meta.get("regularMarketVolume") or 0, o))
     return {"t": [r[0] for r in rows], "c": [r[1] for r in rows], "h": [r[2] for r in rows], "l": [r[3] for r in rows],
             "v": [r[4] or 0 for r in rows], "o": [r[5] if r[5] is not None else r[1] for r in rows],
             "last": live, "live_bad": live_bad, "time": tm,
