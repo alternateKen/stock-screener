@@ -75,7 +75,8 @@ load(()=>{
     B=b;
     document.getElementById('main').innerHTML=overview()
       +table('long-breakouts','Long: breakouts and new highs',B.long.breakouts,'Breakouts, 52-week highs, 50 / 200-day reclaims and golden crosses, not in the Lagging tier. Strongest relative strength first.')
-      +table('long-pullbacks','Long: Lead-tier pullbacks to the 9 / 21 EMA',B.long.pullbacks)
+      +table('long-pullbacks','Long: Lead-tier pullbacks to the 9 / 21 EMA',B.long.pullbacks.filter(c=>c.route!=='touch'))
+      +(B.long.pullbacks.some(c=>c.route==='touch')?table('long-extended','Long: extended Lead tier, tagging the 9 / 21 EMA (not pullbacks)',B.long.pullbacks.filter(c=>c.route==='touch'),'Lead-tier names whose day only tagged a rising EMA while the close sits further from the 21 EMA: momentum in an extended name, not a pullback.'):'')
       +table('long-near','Long: bullish patterns within 3% of breaking out',B.long.near_breakout)
       +table('short-breakdowns','Short: breakdowns and new lows',B.short.breakdowns,'Breakdowns, 52-week lows, lost 50 / 200-day and death crosses, not in the Lead tier. Weakest first.')
       +table('short-bounces','Short: Lagging-tier bounces into the 9 / 21 EMA',B.short.bounces)

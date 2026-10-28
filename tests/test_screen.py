@@ -341,6 +341,25 @@ class Consensus(unittest.TestCase):
             self.assertNotIn("st", stocks["AAPL"])
 
 
+class PullbackRoutes(unittest.TestCase):
+    """Lead-tier pullbacks say how they qualified: route A (close at the 21 EMA) is a pullback; route B (only the day's
+    range tagged a rising EMA, the close further away) is labelled as an extended name, not a pullback."""
+    def test_labels(self):
+        def stock(last, touch):
+            return {"tier": "lead", "last": last, "ema21": 100.0, "dv20": 1e9, "cur": "USD",
+                    "signals": [{"k": "t9d", "d": 1, "t": "Touching 9-day EMA, rising"}] if touch else []}
+        stocks = {"AAA": stock(101.0, False), "BBB": stock(110.0, True)}
+        data = {"generated": "2026-10-28T22:00:00+00:00", "spx_asof": "2026-10-28",
+                "themes": [{"title": "T", "groups": [{"name": "G", "items": [{"k": k, "sym": k, "label": k} for k in stocks]}]}],
+                "leaders": {"groups": [], "hist": {}}}
+        pb = {c["sym"]: c for c in screen.build_brief(data, stocks)["long"]["pullbacks"]}
+        self.assertEqual(pb["AAA"]["route"], "band")
+        self.assertTrue(pb["AAA"]["why"].startswith("Lead tier, pulling back to the 9 / 21 EMA"))
+        self.assertEqual(pb["BBB"]["route"], "touch")
+        self.assertTrue(pb["BBB"]["why"].startswith("Lead tier, extended (10.0% above the 21 EMA): tagged a rising EMA, not a pullback"))
+        self.assertNotIn("pulling back", pb["BBB"]["why"])
+
+
 class RealFiles(unittest.TestCase):
     """Every theme and universe file in the repository parses, and every line becomes a ticker."""
     def test_files_parse(self):

@@ -1054,7 +1054,12 @@ def build_brief(data, stocks):
             short_brk.append(card(r, "; ".join(x["t"] for x in sb)))
         touch = [x for x in s.get("signals", []) if x["k"] in ("t9d", "t21d")]
         if t == "lead" and d21 is not None and (-1 <= d21 <= 3 or any(x["d"] > 0 for x in touch)):
-            long_pb.append(card(r, "Lead tier, pulling back to the 9 / 21 EMA" + (f" ({'; '.join(x['t'] for x in touch)})" if touch else "")))
+            tt = f" ({'; '.join(x['t'] for x in touch)})" if touch else ""
+            if -1 <= d21 <= 3:   # route A: the close is at the 21 EMA, a real pullback
+                long_pb.append({**card(r, "Lead tier, pulling back to the 9 / 21 EMA" + tt), "route": "band"})
+            else:   # route B: only the day's range tagged a rising EMA; the close is away from the 21 EMA (momentum, not a pullback)
+                away = f"{abs(d21):.1f}% {'above' if d21 > 0 else 'below'} the 21 EMA"
+                long_pb.append({**card(r, f"Lead tier, extended ({away}): tagged a rising EMA, not a pullback" + tt), "route": "touch"})
         if t == "lag" and d21 is not None and (-3 <= d21 <= 1 or any(x["d"] < 0 for x in touch)):
             short_bn.append(card(r, "Lagging tier, bouncing into the 9 / 21 EMA" + (f" ({'; '.join(x['t'] for x in touch)})" if touch else "")))
         for p in s.get("pat", []):
