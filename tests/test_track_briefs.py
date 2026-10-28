@@ -155,6 +155,61 @@ class NotionImport(unittest.TestCase):
         self.assertEqual(b["picks"]["pick_clean_long"], ["MSFT"])
         self.assertEqual(b["picks"]["pick_extended"], ["003160 KP"])
 
+    def test_parse_newer_layout(self):
+        """Theme counts in the name, "Cleanest longs (...)" / "Cleanest shorts" headings, several names per line."""
+        md = """## Bottom line
+- <b>Best long idea (small size only):</b> 6460 JT, a Lead-tier pullback.
+- <b>Best short:</b> Cambricon (688256 CH), which had a death cross today.
+## Long setups
+### Lead-tier pullbacks (near the 9 / 21 EMA)
+| Stock | Where | Why | Day | 1M | vs S&P 3M | Trend / short-term | vs 21 EMA |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <b>3167 TT</b> Ta Liang | Taiwan / PCBs | Touching 21-day EMA, rising | +3.9% | +11.1% | +49 pts | Strong uptrend / mixed | +0.7% |
+| <b>6460 JT</b> Sega Sammy | Japan / Games | Touching 9-day EMA, rising | -0.2% | +1.7% | +31 pts | Strong uptrend / mixed | +0.4% |
+| <b>NTSK</b> Netskope | Agentic AI / Cyber | Touching 9-day EMA, rising | +3.7% | +46.5% | +113 pts | Strong uptrend / up | +25.0% |
+<b>Cleanest longs</b> (watch list only under Risk-off):
+- <b>3167 TT Ta Liang</b> and <b>6460 JT Sega Sammy</b>: Lead tier, on rising EMAs.
+- <b>Extended, don't chase:</b> NTSK (+25.0% vs 21 EMA). 3167 TT is not extended.
+## Short setups
+### Breakdowns
+| Stock | Where | Why | Day | 1M | vs S&P 3M | Trend / short-term | vs 21 EMA |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| <b>688256 CH</b> Cambricon | AI / Silicon | Death cross today | -5.7% | -18.0% | -36 pts | Strong downtrend / down | -5.8% |
+| <b>322000 KP</b> HD Hyundai | Korea / Power | Death cross today | -12.5% | -27.8% | -56 pts | Downtrend / down | -29.0% |
+| [<b>D05.SI</b>](http://D05.SI) DBS Group | ASEAN / Banks | New 52-week low | -0.4% | -5.4% | -7 pts | Downtrend / down | -1.6% |
+<b>Cleanest shorts</b> (bounce entries):
+- <b>688256 CH Cambricon</b>: death cross today.
+- <b>Stretched, don't chase:</b> 322000 KP -29.0%.
+## Themes
+| Theme | Day | 1W | 1M | % above 50-day | Lead (5d chg) | Lagging (5d chg) |
+| --- | --- | --- | --- | --- | --- | --- |
+| GICS Sectors (135) | +0.0% | -0.1% | +2.5% | 59% | 65 (+14) | 39 (-6) |
+| Korea (124) | +2.1% | -5.0% | -15.0% | 13% | 12 (-11) | 97 (+15) |
+## High-ADR Leaders
+- <b>Lead (2):</b> AAPL (Information Technology), AI [C3.ai](http://C3.ai) (AI)
+- <b>Mediocre:</b> 9
+- <b>Lagging (3):</b>
+  - Mega-caps: AVGO (Information Technology), GOOGL (Communication Services)
+  - AI hardware: ALAB (Accelerators & Custom Silicon); FORM (Semiconductor Equipment)
+"""
+        self.assertEqual(tb.parse_notion("- Closing on the US session of 2026-10-26 (not intraday).")["us_session"], "2026-10-26")
+        b = tb.parse_notion(md, "2026-10-27")
+        self.assertEqual([(t["theme"], t["n"], t["above50_pct"]) for t in b["themes"]],
+                         [("GICS Sectors", 135, 59.0), ("Korea", 124, 13.0)])
+        self.assertEqual(sorted(b["picks"]["pick_clean_long"]), ["3167 TT", "6460 JT"])
+        self.assertEqual(b["picks"]["pick_extended"], ["NTSK"])
+        self.assertEqual(b["picks"]["pick_clean_short"], ["688256 CH"])
+        self.assertEqual(len(b["long"]["pullbacks"]), 3)
+        self.assertEqual(b["picks"]["pick_best_long"], ["6460 JT"])
+        self.assertEqual(b["picks"]["pick_best_short"], ["688256 CH"])
+        self.assertEqual(b["short"]["breakdowns"][2]["sym"], "D05.SI")
+        tiers = b["leaders"]["tiers"]
+        self.assertEqual([c["sym"] for c in tiers["lead"]], ["AAPL", "AI"])
+        self.assertEqual([(c["sym"], c["where"]) for c in tiers["lag"]],
+                         [("AVGO", "Leaders / Mega-caps"), ("GOOGL", "Leaders / Mega-caps"),
+                          ("ALAB", "Leaders / AI hardware"), ("FORM", "Leaders / AI hardware")])
+        self.assertEqual(tiers["med"], [])
+
 
 class Window(unittest.TestCase):
     def test_brief_window(self):

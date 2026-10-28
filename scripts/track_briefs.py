@@ -540,11 +540,12 @@ def _strip(s):
 
 def parse_notion(md, session=None):
     md = md.replace("\\|", "/")
+    md = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", md)   # Notion auto-links: "[<b>U96.SI</b>](http://U96.SI)" -> "<b>U96.SI</b>"
     brief = {"long": {"breakouts": [], "pullbacks": [], "near_breakout": []},
              "short": {"breakdowns": [], "bounces": [], "near_breakdown": []},
              "improving": [], "deteriorating": [], "themes": [], "leaders": {"tiers": {"lead": [], "med": [], "lag": []}},
              "source": "notion"}
-    m = re.search(r"US session (\d{4}-\d{2}-\d{2})", md)
+    m = re.search(r"US session (?:of )?(\d{4}-\d{2}-\d{2})", md)
     brief["us_session"] = session or (m.group(1) if m else None)
     m = re.search(r"Screener generated (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) UTC", md)
     brief["generated"] = f"{m.group(1)}T{m.group(2)}:00+00:00" if m else None
@@ -552,7 +553,7 @@ def parse_notion(md, session=None):
     brief["leaders"]["health"] = {"status": m.group(1)} if m else None
     section, head, part = None, None, None
     picks = {k: [] for k in PICKS}
-    clean_side = None
+    clean_side = leader_tier = None
     for raw in md.splitlines():
         line = raw.strip()
         if line.startswith("## "):
@@ -560,37 +561,50 @@ def parse_notion(md, session=None):
             section, head, clean_side = (("themes",) if part == "themes" else None), None, None
             continue
         if line.startswith("### "):
-            section, head = SECTION_KEYS.get(line[4:].strip().lower()), None
+            title = line[4:].strip().lower()   # "Lead-tier pullbacks (near the 9 / 21 EMA)", "... to the 9 / 21 EMA"
+            section, head = next((v for k, v in SECTION_KEYS.items() if title.startswith(k)), None), None
             continue
         plain = _strip(line)
-        if plain.startswith("Cleanest:"):
+        if re.match(r"Cleanest(?: longs| shorts)?\b", plain):   # "Cleanest:", "Cleanest longs (...):", "Cleanest shorts:"
             clean_side = "long" if part == "long setups" else "short"
             section = None
             continue
-        if plain.startswith("- Best long:") or "Best long:" in plain:
-            for t in re.findall(r"Best long:\s*([^,;]+)", plain):
-                picks["pick_best_long"].append(t.strip().split()[0])
-            for t in re.findall(r"Best short:\s*([^,;]+)", plain):
-                picks["pick_best_short"].append(t.strip().split()[0])
+        if part == "bottom line" and re.search(r"Best (?:long|short)[^:]*:", plain):
+            # "Best long: PLTR, ...", "Best long idea (small size only): PLTR", "Best short: Cambricon (688256 CH), ..."
+            for t in re.findall(r"Best long[^:]*:\s*([^,;]+)", plain):
+                picks["pick_best_long"].append(t.strip())
+            for t in re.findall(r"Best short[^:]*:\s*([^,;]+)", plain):
+                picks["pick_best_short"].append(t.strip())
         if clean_side and line.startswith("- "):
             bolds = [a or b for a, b in _bold(line)]
             lead = bolds[0] if bolds else ""
-            if lead.lower().startswith("extended"):
-                picks["pick_extended"].append(plain)
-            else:
-                picks[f"pick_clean_{clean_side}"].append(lead)
+            if "chase" in lead.lower() or lead.lower().startswith("extended"):
+                if clean_side == "long":   # "Stretched, don't chase" shorts are not picks
+                    picks["pick_extended"].append(re.split(r"\.\s", plain)[0])   # first sentence: later ones may name non-picks
+            else:   # every name before the first ":", e.g. "3167 TT Ta Liang and 6460 JT Sega Sammy"
+                picks[f"pick_clean_{clean_side}"].append(plain[2:].partition(":")[0])
             continue
         if part == "high-adr leaders":
-            plainl = _strip(line)
-            if plainl.startswith("Lead ("):
-                syms = [t for t in (a or b for a, b in _bold(line)) if re.fullmatch(r"[A-Z0-9.\- ]+", t)]
-                brief["leaders"]["tiers"]["lead"] = [{"sym": t, "name": t, "where": "Leaders", "why": "Lead tier"} for t in syms]
-            elif line.startswith("- ") and ":" in plainl:
-                sector, _, names = plainl[2:].partition(":")
-                for s in names.split(","):
-                    if s.strip():
-                        brief["leaders"]["tiers"]["lag"].append({"sym": s.strip(), "name": s.strip(), "where": f"Leaders / {sector.strip()}",
-                                                                 "why": "Lagging tier"})
+            # "Lead (2): AAPL (Information Technology); MSFT (...)" or "- Lead (4): AAPL (...), MSFT (...)", then
+            # "Lagging (48):" with sub-bullets "- Quantum: IONQ, RGTI" / "- AI hardware: ALAB (...); FORM, AEHR (...)"
+            plainl = re.sub(r"^-\s*", "", _strip(line))
+            tm = re.match(r"(Lead|Mediocre|Lagging)\b[^:]*:\s*(.*)", plainl)
+            if tm:
+                leader_tier = {"Lead": "lead", "Mediocre": "med", "Lagging": "lag"}[tm.group(1)]
+                sector, names = None, tm.group(2)
+            elif line.startswith("- ") and ":" in plainl and leader_tier:
+                sector, _, names = plainl.partition(":")
+            else:
+                continue
+            if leader_tier == "med":   # the brief gives only a count
+                continue
+            for s in re.split(r"[,;]", re.sub(r"\([^)]*\)", "", names)):
+                s = s.strip()
+                sym = s if re.fullmatch(r"[A-Z0-9.\- ]+", s) else s.split()[0] if s else ""
+                if sym:
+                    brief["leaders"]["tiers"][leader_tier].append(
+                        {"sym": sym, "name": sym, "where": f"Leaders / {sector.strip()}" if sector else "Leaders",
+                         "why": "Lead tier" if leader_tier == "lead" else "Lagging tier"})
             continue
         if not line.startswith("|") or section is None:
             continue
@@ -603,8 +617,11 @@ def parse_notion(md, session=None):
         row = dict(zip(head, cells))
         if section == ("themes",):
             lead, lag = row.get("lead (5d chg)", ""), row.get("lagging (5d chg)", "")
-            brief["themes"].append({"theme": row["theme"], "n": int(num(row["stocks"])), "day": num(row["day"]),
-                                    "w1": num(row["1w"]), "m1": num(row["1m"]), "above50_pct": num(row["% above 50-day"]),
+            tm = re.match(r"(.*?)\s*\((\d+)\)$", row["theme"])   # no Stocks column: "GICS Sectors (135)"
+            theme, n = (tm.group(1), tm.group(2)) if tm else (row["theme"], row.get("stocks"))
+            above50 = row.get("% above 50-day", row.get("above 50-day"))
+            brief["themes"].append({"theme": theme, "n": int(num(n)) if n else None, "day": num(row["day"]),
+                                    "w1": num(row["1w"]), "m1": num(row["1m"]), "above50_pct": num(above50),
                                     "lead": int(num(lead)), "lead_5d": num(lead.split("(")[1]) if "(" in lead else None,
                                     "lag": int(num(lag)), "lag_5d": num(lag.split("(")[1]) if "(" in lag else None})
             continue
