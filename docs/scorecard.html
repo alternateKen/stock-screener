@@ -74,6 +74,7 @@ const hitCls=h=>h==null?'':h>=55?'up':h<=45?'dn':'mu';
 function summaryHTML(){
   const rows=rowsF(),lists=[...new Set(Object.keys(S.cube).map(k=>k.split('|')[0]))],all=F.brief==='all';
   const groups=[['Long setups',['breakouts','pullbacks','near_breakout','all_long']],['Short setups',['breakdowns','bounces','near_breakdown','all_short']],
+    ['Shadow test: filtered short book vs all shorts (not used by the brief yet)',['all_short','shadow_short','shadow_bounces','shadow_breakdowns']],
     ['Split by signal and rule path',['breakouts_level','breakouts_hi52','breakouts_ma','pullbacks_band','pullbacks_touch','breakdowns_level','breakdowns_lo52','breakdowns_ma','bounces_band','bounces_touch']],
     ['Improving / deteriorating',['improving','deteriorating']],['High-ADR leaders',['leaders_lead','leaders_lag']],
     ['Curated in the Notion brief',['pick_best_long','pick_clean_long','pick_extended','pick_best_short','pick_clean_short']]];
@@ -183,7 +184,7 @@ function trackerHTML(){
   const body=MAIN.map(l=>{
     const rs=order(all.filter(r=>r.list===l&&keep(r)));if(!rs.length)return '';
     return `<tr class="lhead"><td colspan="${HZ().length+2}"><span class="lt ${l.startsWith('break')||l==='near_breakdown'||l==='bounces'||l==='deteriorating'||l==='leaders_lag'?'dn':'up'}">${esc(S.labels[l]||l)}</span> <span class="mu">${rs.length} stock${rs.length>1?'s':''}</span></td></tr>`+rs.map(r=>
-      `<tr class="${pickRank(picks[r.sym])<2?'pick':pickRank(picks[r.sym])===3?'ext':''}"><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag ${PICK_RANK[t]===3?'ext':'pick'}">${PICK_RANK[t]===3?'':'★ '}${esc(t)}</span>`).join('')}
+      `<tr class="${pickRank(picks[r.sym])<2?'pick':pickRank(picks[r.sym])===3?'ext':''}"><td class="nm"><a class="stk" href="${chartUrl(r.k)}">${esc(r.sym)}</a> <span class="tag ${r.side>0?'up':'dn'}">${r.side>0?'long':'short'}</span>${(picks[r.sym]||[]).map(t=>` <span class="tag ${PICK_RANK[t]===3?'ext':'pick'}">${PICK_RANK[t]===3?'':'★ '}${esc(t)}</span>`).join('')}${r.shadow===false?' <span class="tag ext" title="The shadow test would skip this short: no bounce or breakdown shorts on Risk-off / Improving days, and touch-only bounces need a close within 5% of the 21 EMA">shadow: skip</span>':''}
         <small>${esc(r.name||'')}</small><small class="why">${esc(r.why||'')}</small>${r.flag?`<small class="warn">⚠ ${esc(r.flag)}</small>`:''}</td>
         <td class="hz"><b>${px(r.entry_close)}</b><span class="hl">${esc(r.cur||'')} · ${esc(r.signal_day||'')}</span></td>${HZ().map(h=>hzCell(r,h)).join('')}</tr>`).join('')}).join('');
   const chip=(k,v,l)=>`<span class="fchip ${T[k]===v?'on':''}" data-t="${k}" data-v="${esc(v)}">${esc(l)}</span>`;
@@ -198,6 +199,7 @@ function trackerHTML(){
    Midday editions (Asia: non-US stocks at the first build from 12:00; US: US stocks 1 hour after the open) are measured from the price at that build, with Rest of day (that build to the day's close) first; the statistics and positions below use the morning brief only.
    Brief order is the screener's own ranking: breakouts, pullbacks and Improving by 3-month strength against the S&amp;P 500 (strongest first), breakdowns, bounces and Deteriorating by the same measure weakest first, near breakout / breakdown by the distance to the level (nearest first), leaders as listed. Sorting by 1D, 1W or 20D puts the best result for the trade first (the biggest rise for a long, the biggest fall for a short); stocks still waiting go last.
    ★ marks the brief's own Best and Cleanest calls from Notion; rows the brief flagged as extended are dimmed.
+   "shadow: skip" marks shorts a filter under test would drop (no bounce or breakdown shorts on Risk-off / Improving mornings; touch-only bounces need a close within 5% of the 21 EMA). The brief still lists them; the Statistics section compares both short books.
    The large number is the close-to-close change from the entry price. H and L are the highest and lowest prices traded during that window, with the % from the entry.
    Green means the move was in the trade's favour (up for a long, down for a short). <a href="scorecard.csv" style="color:var(--acc)">Download every result as CSV</a> for Excel.</div></section>`;
 }
