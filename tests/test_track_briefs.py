@@ -369,6 +369,32 @@ class MiddayEditions(unittest.TestCase):
         self.assertEqual(tb.brief_label(a), "26 Oct Asia midday")
 
 
+class ShadowFilter(unittest.TestCase):
+    def test_rules(self):
+        k = tb.shadow_keep
+        self.assertTrue(k("near_breakdown", {}, "Risk-off"))              # near-breakdown shorts always stay
+        self.assertFalse(k("breakdowns", {}, "Risk-off"))
+        self.assertFalse(k("bounces", {"vs21": 0.0}, "Improving"))
+        self.assertTrue(k("breakdowns", {}, "Healthy"))
+        self.assertTrue(k("bounces", {"vs21": -2.0}, "Weakening"))       # in the band
+        self.assertTrue(k("bounces", {"vs21": -4.5}, "Healthy"))         # touch, close within 5% of the 21 EMA
+        self.assertFalse(k("bounces", {"vs21": -8.9}, "Healthy"))        # touch only, far below: skipped
+        self.assertIsNone(k("breakouts", {}, "Risk-off"))
+
+    def test_evaluate_scores_both_short_books(self):
+        tb.ARCHIVE = tempfile.mkdtemp()
+        raw, ds = chart([100.0] * 40)
+        d = setup_dir({"AAA": raw, "BBB": raw})
+        brief = {"us_session": ds[30].isoformat(), "generated": "2026-10-27T22:00:00+00:00", "leaders": {"health": {"status": "Risk-off"}},
+                 "short": {"breakdowns": [{"sym": "AAA", "k": "AAA", "last": 100.0}], "near_breakdown": [{"sym": "BBB", "k": "BBB", "last": 100.0}]}}
+        with open(os.path.join(tb.ARCHIVE, f"{ds[30].isoformat()}.json"), "w") as f:
+            json.dump(brief, f)
+        out = tb.evaluate(d, fetcher=Fake(), today=ds[-1] + timedelta(days=3), quiet=True)
+        books = {l: sorted(r["sym"] for r in out["rows"] if r["list"] == l) for l in ("all_short", "shadow_short")}
+        self.assertEqual(books, {"all_short": ["AAA", "BBB"], "shadow_short": ["BBB"]})
+        self.assertIn("shadow_short", out["labels"])
+
+
 class EndToEnd(unittest.TestCase):
     def test_evaluate_writes_scorecard(self):
         tb.CACHE = tempfile.mkdtemp()

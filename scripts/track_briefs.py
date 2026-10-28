@@ -78,6 +78,30 @@ SUBLISTS = {
     "bounces_band": (-1, "Short: bounces, -3% to +1% from the 21 EMA"), "bounces_touch": (-1, "Short: bounces, EMA touch only"),
 }
 LONG_SETUPS, SHORT_SETUPS = ("breakouts", "pullbacks", "near_breakout"), ("breakdowns", "bounces", "near_breakdown")
+# Shadow test: a filtered short book scored next to the brief's own, without changing the brief. From the 2-year
+# backtest (Oct 2024 - Oct 2026): bounce shorts that only touched a falling EMA need their close within 5% of the
+# 21 EMA, and no bounce or breakdown shorts when the morning's leaders' health call is Risk-off or Improving
+# (near-breakdown shorts stay). The brief's lists hold 15 names, so this scores a subset of them: the real rule would
+# refill the lists from lower-ranked names.
+SHADOW_SKIP_CALLS = ("Risk-off", "Improving")
+SHADOW_TOUCH_MAX = 5.0
+SHADOW = {"shadow_short": (-1, "Shadow test: filtered short book (unique names)"),
+          "shadow_bounces": (-1, "Shadow test: bounce shorts kept"),
+          "shadow_breakdowns": (-1, "Shadow test: breakdown shorts kept")}
+
+
+def shadow_keep(key, card, health):
+    """Would the shadow filter keep this short setup? (None for anything that isn't a short setup.)"""
+    if key not in SHORT_SETUPS:
+        return None
+    if key == "near_breakdown":
+        return True
+    if health in SHADOW_SKIP_CALLS:
+        return False
+    if key == "bounces":
+        v = card.get("vs21")
+        return v is not None and (-3 <= v <= 1 or abs(v) <= SHADOW_TOUCH_MAX)
+    return True
 
 # home-market benchmark by Yahoo suffix. Where Yahoo has no usable index history, an ETF tracking it stands in:
 # TOPIX = 1306.T, CSI 300 = 510300.SS (Huatai-PineBridge), SET50 = TDEX.BK (ThaiDEX)
@@ -930,7 +954,7 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
         session = br.get("edition_date") if intraday else br["us_session"]
         bid = brief_id(br)
         status = ((br.get("leaders") or {}).get("health") or {}).get("status")
-        seen, first = {}, len(rows)
+        seen, shadow, first = {}, {}, len(rows)
         for key, (path, side, label) in LISTS.items():
             node = br
             for p in path:
@@ -941,7 +965,13 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                        "sym": card["sym"], "name": card.get("name"), "where": card.get("where"), "why": card.get("why"),
                        "tier0": card.get("tier"), "vs21": card.get("vs21"), "rs3": card.get("rs3"), "last": card.get("last"),
                        "cur": card.get("cur"), **sc}
+                if not intraday:
+                    row["shadow"] = shadow_keep(key, card, status)
                 rows.append(row)
+                if row.get("shadow"):
+                    shadow.setdefault((card["sym"], side), row)
+                    if key in ("bounces", "breakdowns"):
+                        rows.append({**row, "list": f"shadow_{key}", "label": SHADOW[f"shadow_{key}"][1]})
                 sub = sublist(key, card)
                 if sub:
                     rows.append({**row, "list": sub, "label": SUBLISTS[sub][1]})
@@ -949,6 +979,8 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
                     seen.setdefault((card["sym"], side), row)
         for (sym, side), row in seen.items():
             rows.append({**row, "list": "all_long" if side > 0 else "all_short", "label": AGGREGATES["all_long" if side > 0 else "all_short"][1]})
+        for row in shadow.values():
+            rows.append({**row, "list": "shadow_short", "label": SHADOW["shadow_short"][1]})
         for pk, syms in (br.get("picks") or {}).items():
             for sym in syms:
                 src = seen.get((sym, PICKS[pk][0]))
@@ -994,6 +1026,7 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
     morning = [r for r in rows if r.get("edition", "morning") == "morning"]
     cube, mech = summarise(morning)   # statistics and positions: the morning brief only, so they stay comparable
     ps = positions(morning, prices)
+    shadow_ps = positions([r for r in morning if r["side"] > 0 or r.get("shadow")], prices)   # shorts: shadow-kept only
     keep = [brief_id(b) for b in briefs[-ROWS_BRIEFS * 3:]]
     srcs = {}
     for r in rows:
@@ -1003,6 +1036,7 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
     labels.update({k: v[1] for k, v in PICKS.items()})
     labels.update({k: v[1] for k, v in AGGREGATES.items()})
     labels.update({k: v[1] for k, v in SUBLISTS.items()})
+    labels.update({k: v[1] for k, v in SHADOW.items()})
     out = {"generated": datetime.now(timezone.utc).isoformat(timespec="minutes"), "today": today.isoformat(),
            "horizons": [h for h, _ in HORIZONS], "intraday_horizon": CLOSE_H[0],
            "briefs": [{"session": b["us_session"], "id": brief_id(b), "label": brief_label(b), "edition": b.get("edition") or "morning",
@@ -1012,7 +1046,8 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
            "labels": labels, "cube": cube, "mech": mech, "health": health, "themes": themes,
            "rows": [r for r in rows if r["brief"] in set(keep)], "rows_briefs": keep,
            "price_source": " + ".join(f"{'Bloomberg' if k == 'bbg' else 'Yahoo'} {v}" for k, v in sorted(srcs.items())) or "–",
-           "positions": ps, "pos_summary": positions_summary(ps), "pos_rules": {"max": POS_MAX, "whipsaw": WHIPSAW},
+           "positions": ps, "pos_summary": positions_summary(ps),
+           "pos_summary_shadow": {k: v for k, v in positions_summary(shadow_ps).items() if k in SHORT_SETUPS + ("all_short",)}, "pos_rules": {"max": POS_MAX, "whipsaw": WHIPSAW},
            "universe_baseline": bool(univ_keys)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "scorecard.json"), "w", encoding="utf-8") as f:
@@ -1027,7 +1062,7 @@ def evaluate(out_dir, fetch=False, today=None, fetcher=None, briefs=None, prices
 
 
 def write_csv(rows, path):
-    cols = ["brief", "edition", "health", "list", "side", "sym", "name", "where", "why", "tier0", "vs21", "rs3", "cur", "last",
+    cols = ["brief", "edition", "health", "shadow", "list", "side", "sym", "name", "where", "why", "tier0", "vs21", "rs3", "cur", "last",
             "status", "flag", "signal_day", "entry_close", "adr"]
     hcols = []
     for name, _ in [CLOSE_H] + list(HORIZONS):
