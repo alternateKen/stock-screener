@@ -74,7 +74,8 @@ SUBLISTS = {
     "breakouts_ma": (1, "Long: breakouts, MA reclaim / golden cross only"),
     "breakdowns_level": (-1, "Short: breakdowns, through a level"), "breakdowns_lo52": (-1, "Short: breakdowns, 52-week low only"),
     "breakdowns_ma": (-1, "Short: breakdowns, MA loss / death cross only"),
-    "pullbacks_band": (1, "Long: pullbacks, -1% to +3% from the 21 EMA"), "pullbacks_touch": (1, "Long: pullbacks, EMA touch only (extended)"),
+    "pullbacks_band": (1, "Long: pullbacks, -1% to +3% from the 21 EMA"),
+    "pullbacks_touch": (1, "Long: extended Lead tier tagging an EMA (not a pullback)"),
     "bounces_band": (-1, "Short: bounces, -3% to +1% from the 21 EMA"), "bounces_touch": (-1, "Short: bounces, EMA touch only"),
 }
 LONG_SETUPS, SHORT_SETUPS = ("breakouts", "pullbacks", "near_breakout"), ("breakdowns", "bounces", "near_breakdown")
@@ -526,6 +527,7 @@ def iter_cards(brief):
 
 # ---------------- Notion import ----------------
 SECTION_KEYS = {"breakouts": ("long", "breakouts"), "lead-tier pullbacks": ("long", "pullbacks"),
+                "extended lead tier, tagging the 9 / 21 ema (not pullbacks)": ("long", "pullbacks"),
                 "near breakout": ("long", "near_breakout"), "breakdowns": ("short", "breakdowns"),
                 "lagging-tier bounces": ("short", "bounces"), "near breakdown": ("short", "near_breakdown"),
                 "improving": ("improving",), "deteriorating": ("deteriorating",)}
