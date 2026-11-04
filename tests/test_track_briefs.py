@@ -318,6 +318,28 @@ class MiddayEditions(unittest.TestCase):
         out = tb.score_card({"sym": "AAA", "k": "AAA", "last": 100.5, "t0": raw["t"][30]}, 1, ds[30].isoformat(), p, p.today, intraday=True)
         self.assertTrue(out["res"]["Close"]["pending"])
 
+    def setUp(self):
+        self.track = tb.TRACK_MIDDAY
+        tb.TRACK_MIDDAY = True   # these tests cover the midday code, which is switched off by default
+
+    def tearDown(self):
+        tb.TRACK_MIDDAY = self.track
+
+    def test_switched_off_by_default(self):
+        tb.TRACK_MIDDAY = False
+        tb.ARCHIVE = tempfile.mkdtemp()
+        raw, _ = chart([100.0] * 31)
+        d = setup_dir({"2330.TW": raw})
+        with open(os.path.join(d, "brief.json"), "w") as f:
+            json.dump({"generated": "2026-10-27T04:05:00+00:00", "us_session": "2026-10-26", "intraday": False,
+                       "long": {"breakouts": [{"sym": "2330 TT", "k": "2330.TW", "cur": "TWD"}]}}, f)
+        self.assertIsNone(tb.archive(d))                       # an Asia midday build is no longer kept
+        for name in ("2026-10-26.json", "2026-10-27-asia.json"):
+            with open(os.path.join(tb.ARCHIVE, name), "w") as f:
+                json.dump({"us_session": "2026-10-26", "edition": "asia" if "asia" in name else None,
+                           "edition_date": "2026-10-27", "generated": "2026-10-26T22:00:00+00:00"}, f)
+        self.assertEqual([tb.brief_id(b) for b in tb.load_archive()], ["2026-10-26"])   # old midday files ignored
+
     def test_archive_keeps_the_first_asia_build(self):
         tb.ARCHIVE = tempfile.mkdtemp()
         raw, ds = chart([100.0] * 31)

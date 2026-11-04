@@ -45,6 +45,9 @@ LOCAL_UTC_HOURS = 8         # the owner's clock (Malaysia): the brief and the mi
 # midday update (first build from 1 hour after the US open, US stocks only). Midday setups are measured from their
 # price at that build, with a "Close" window (rest of that day) before 1D / 1W / 20D.
 EDITIONS = {"morning": "morning", "asia": "Asia midday", "us": "US midday"}
+# Off since the Asia and US midday updates stopped (Nov 2026): no new midday snapshots are archived, and the ones already
+# in data/briefs are left out of the scores. Set True to track them again.
+TRACK_MIDDAY = False
 ASIA_MIDDAY_UTC = (4, 9)    # 12:00-17:00 local
 US_SETTLE_MIN = 60
 CLOSE_H = ("Close", 0)
@@ -469,7 +472,7 @@ def archive(out_dir, now=None):
     gen = datetime.fromisoformat(brief["generated"])
     session = brief.get("us_session")
     if not in_brief_window(gen, session, brief.get("intraday")):
-        mid = midday_edition(gen, brief.get("intraday"))
+        mid = midday_edition(gen, brief.get("intraday")) if TRACK_MIDDAY else None
         if mid:
             return archive_midday(out_dir, brief, *mid)
         print(f"archive: build {brief['generated']} is neither the morning brief's (after the {session} US close, before "
@@ -825,7 +828,7 @@ def load_archive():
     out = []
     if os.path.isdir(ARCHIVE):
         for f in sorted(os.listdir(ARCHIVE)):
-            if re.match(r"\d{4}-\d{2}-\d{2}(-asia|-us)?\.json$", f):
+            if re.match(r"\d{4}-\d{2}-\d{2}\.json$" if not TRACK_MIDDAY else r"\d{4}-\d{2}-\d{2}(-asia|-us)?\.json$", f):
                 with open(os.path.join(ARCHIVE, f), encoding="utf-8") as fh:
                     out.append(json.load(fh))
     return sorted(out, key=lambda b: b.get("generated") or b["us_session"])
